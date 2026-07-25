@@ -16,7 +16,7 @@ type File struct {
 func Open(name string, mode os.FileMode, bufferred bool) (*File, error) {
 	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY, mode)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var w *bufio.Writer
@@ -24,10 +24,7 @@ func Open(name string, mode os.FileMode, bufferred bool) (*File, error) {
 		w = bufio.NewWriter(f)
 	}
 
-	return &File{
-		f: f,
-		w: w,
-	}
+	return &File{f: f, w: w}, nil
 }
 
 func (f *File) Write(p []byte) (n int, err error) {
