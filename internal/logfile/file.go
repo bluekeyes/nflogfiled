@@ -3,6 +3,7 @@ package logfile
 import (
 	"bufio"
 	"os"
+	"path/filepath"
 )
 
 type File struct {
@@ -11,16 +12,22 @@ type File struct {
 	std bool
 }
 
-// Open opens the file at name for writing, creating if it doesn't exist. If
-// bufferred is true, writes are bufferred in memory.
-func Open(name string, mode os.FileMode, bufferred bool) (*File, error) {
+// Open opens the file at name for writing, creating it and any parent
+// directories if they doesn't exist. If buffered is true, writes are
+// buffered in memory.
+func Open(name string, mode os.FileMode, buffered bool) (*File, error) {
+	dir := filepath.Dir(name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+
 	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY, mode)
 	if err != nil {
 		return nil, err
 	}
 
 	var w *bufio.Writer
-	if bufferred {
+	if buffered {
 		w = bufio.NewWriter(f)
 	}
 
@@ -49,9 +56,9 @@ func (f *File) Close() error {
 
 // Stdout returns a File for standard output. Closing the File flushes pending
 // writes but does not close underlying stdout handle.
-func Stdout(bufferred bool) *File {
+func Stdout(buffered bool) *File {
 	var w *bufio.Writer
-	if bufferred {
+	if buffered {
 		w = bufio.NewWriter(os.Stdout)
 	}
 
