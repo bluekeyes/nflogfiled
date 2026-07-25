@@ -1,8 +1,9 @@
 package groups
 
 import (
-	"slices"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestParseSelector(t *testing.T) {
@@ -71,8 +72,10 @@ func TestParseSelector(t *testing.T) {
 			if err != nil {
 				t.Fatalf("expected nil parse error, got: %v", err)
 			}
-			if want := test.Groups; !slices.Equal(want, got) {
-				t.Errorf("incorrect groups, want %v, got %v", want, got)
+
+			want := test.Groups
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("incorrect groups (-want, +got):\n%s", diff)
 			}
 		})
 	}

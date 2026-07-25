@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-type Group uint16
-
 // ParseSelector parses a group selector string. A group selector string is a
 // comma separated list of positive integers with optional ranges. Ranges take
 // the form `start-end` and are inclusive. For example, the the selector string
