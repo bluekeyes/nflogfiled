@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"time"
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/bluekeyes/nflogfiled/internal/logfile"
@@ -16,8 +17,12 @@ const (
 )
 
 const (
-	DefaultFileMode          = 0o644
-	DefaultChannelBufferSize = 4096
+	DefaultFileMode             = 0o644
+	DefaultChannelBufferSize    = 4096
+	DefaultPacketBufferSize     = 128
+	DefaultKernelReadBufferSize = 2 * 1024 * 1024
+	DefaultKernelFlushTimeout   = time.Second
+	DefaultKernelFlushCount     = 10
 )
 
 // A pipeline contains a set of nflog connections, the channel to which they
@@ -38,46 +43,63 @@ type Pipeline struct {
 }
 
 type PipelineOptions struct {
-	Format            logfile.FormatFunc
-	FileMode          fs.FileMode
-	Unbuffered        bool
-	ChannelBufferSize int
+	Format     logfile.FormatFunc
+	FileMode   fs.FileMode
+	Unbuffered bool
+
+	ChannelBufferSize    int
+	PacketBufferSize     uint32
+	KernelReadBufferSize int
+	KernelFlushTimeout   time.Duration
+	KernelFlushCount     uint32
+}
+
+func setDefaultOptionsIfMissing(opts *PipelineOptions) {
+	if opts.Format == nil {
+		// TODO(bkeyes): set a default format functions here
+	}
+	if opts.FileMode == 0 {
+		opts.FileMode = DefaultFileMode
+	}
+
+	if opts.ChannelBufferSize <= 0 {
+		opts.ChannelBufferSize = DefaultChannelBufferSize
+	}
+	if opts.PacketBufferSize == 0 {
+		opts.PacketBufferSize = DefaultPacketBufferSize
+	}
+	if opts.KernelReadBufferSize <= 0 {
+		opts.KernelReadBufferSize = DefaultKernelReadBufferSize
+	}
+	if opts.KernelFlushTimeout <= 0 {
+		opts.KernelFlushTimeout = DefaultKernelFlushTimeout
+	}
+	if opts.KernelFlushCount == 0 {
+		opts.KernelFlushCount = DefaultKernelFlushCount
+	}
 }
 
 func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOptions) (*Pipeline, error) {
-	fileMode := opts.FileMode
-	if fileMode == 0 {
-		fileMode = DefaultFileMode
-	}
-
-	chanBufSize := opts.ChannelBufferSize
-	if chanBufSize <= 0 {
-		chanBufSize = DefaultChannelBufferSize
-	}
-
-	fmtFn := opts.Format
-	if fmtFn == nil {
-		// TODO(bkeyes): set a default format functions here
-	}
+	setDefaultOptionsIfMissing(&opts)
 
 	ctx, cancel := context.WithCancel(ctx)
-	msgs := make(chan nflog.Attribute, chanBufSize)
+	msgs := make(chan nflog.Attribute, opts.ChannelBufferSize)
 
 	p := &Pipeline{
 		ctx:    ctx,
 		cancel: cancel,
 
 		conns: make([]*nflog.Nflog, len(mapping.Groups)),
-		w:     logfile.NewWriter(msgs, fmtFn),
+		w:     logfile.NewWriter(msgs, opts.Format),
 
 		fileName:     mapping.File,
-		fileMode:     fileMode,
+		fileMode:     opts.FileMode,
 		fileBuffered: !opts.Unbuffered,
 	}
 
 	for i, g := range mapping.Groups {
 		var err error
-		p.conns[i], err = openNflogConn(ctx, g, msgs)
+		p.conns[i], err = openNflogConn(ctx, g, msgs, opts)
 		if err != nil {
 			p.cleanup()
 			return nil, err
@@ -142,10 +164,15 @@ func (p *Pipeline) cleanup() {
 	}
 }
 
-func openNflogConn(ctx context.Context, group groups.Group, msgs chan<- nflog.Attribute) (*nflog.Nflog, error) {
+func openNflogConn(ctx context.Context, group groups.Group, msgs chan<- nflog.Attribute, opts PipelineOptions) (*nflog.Nflog, error) {
 	config := nflog.Config{
 		Group:    uint16(group),
-		Copymode: nflog.CopyMeta,
+		Copymode: nflog.CopyPacket,
+		Bufsize:  opts.PacketBufferSize,
+		QThresh:  opts.KernelFlushCount,
+		Timeout:  uint32(opts.KernelFlushTimeout.Milliseconds() / 10),
+		Logger:   nflogLogger{ctx: ctx},
+		// Flags: nflog.FlagSeq, // TODO(bkeyes): need to do something with sequence numbers
 	}
 
 	nf, err := nflog.Open(&config)
@@ -153,34 +180,11 @@ func openNflogConn(ctx context.Context, group groups.Group, msgs chan<- nflog.At
 		return nil, fmt.Errorf("opening nflog connection failed: %w", err)
 	}
 
-	// TODO(bkeyes): figure out if these are important and what values to use
-
-	// if err := nf.Con.SetReadBuffer(512 * 1024); err != nil {
-	// 	fmt.Fprintf(os.Stderr, "failed to set read buffer: %v", err)
-	// 	return
-	// }
-
-	// if err := nf.SetOption(netlink.NoENOBUFS, true); err != nil {
-	// 	fmt.Fprintf(os.Stderr, "failed to set netlink option %v: %v",
-	// 		netlink.NoENOBUFS, err)
-	// 	return
-	// }
-
-	hook := func(attrs nflog.Attribute) int {
-		select {
-		case msgs <- attrs:
-		default:
-			slog.WarnContext(ctx, "dropped nflog message, output channel is full")
-		}
-		return 0
+	if err := nf.Con.SetReadBuffer(opts.KernelReadBufferSize); err != nil {
+		slog.WarnContext(ctx, "setting kernel read buffer size failed, continuing with kernel's default buffer", "error", err)
 	}
 
-	errFunc := func(err error) int {
-		slog.ErrorContext(ctx, "error receiving nflog message", "error", err)
-		return 0
-	}
-
-	if err := nf.RegisterWithErrorFunc(ctx, hook, errFunc); err != nil {
+	if err := nf.RegisterWithErrorFunc(ctx, NflogHook(ctx, msgs), NflogErrorFunc(ctx)); err != nil {
 		_ = nf.Close()
 		return nil, fmt.Errorf("registering nflog hook failed: %w", err)
 	}
