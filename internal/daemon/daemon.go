@@ -1,20 +1,65 @@
 package daemon
 
-import "context"
+import (
+	"context"
+	"fmt"
+
+	"github.com/bluekeyes/nflogfiled/internal/groups"
+)
+
+const (
+	StdoutFile = "-"
+)
 
 type Daemon struct {
 }
 
 type Config struct {
+	Mappings []groups.Mapping
 }
 
-func NewDaemon(config Config) *Daemon {
-	return &Daemon{}
+func NewDaemon(config Config) (*Daemon, error) {
+	if err := validateMappings(config.Mappings); err != nil {
+		return nil, err
+	}
+	return &Daemon{}, nil
 }
 
 // Start starts the daemon and blocks until the context is cancelled. It
 // returns an error only for errors that occur during the start process.
 func (d *Daemon) Start(ctx context.Context) error {
 	<-ctx.Done()
+	return nil
+}
+
+func validateMappings(mappings []groups.Mapping) error {
+	allGroups := make(map[groups.Group]bool)
+	allFiles := make(map[string]bool)
+
+	if len(mappings) == 0 {
+		return fmt.Errorf("the daemon must have at least one group mapping")
+	}
+
+	for _, m := range mappings {
+		if len(m.Groups) == 0 {
+			return fmt.Errorf("mapping defines no groups")
+		}
+		if m.File == "" {
+			return fmt.Errorf("mapping defines no file")
+		}
+
+		for _, g := range m.Groups {
+			if allGroups[g] {
+				return fmt.Errorf("group %d appears in multiple mappings", g)
+			}
+			allGroups[g] = true
+		}
+
+		if allFiles[m.File] {
+			return fmt.Errorf("file %q appears in multiple mappings", m.File)
+		}
+		allFiles[m.File] = true
+	}
+
 	return nil
 }
