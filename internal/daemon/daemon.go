@@ -12,6 +12,7 @@ const (
 )
 
 type Daemon struct {
+	mappings []groups.Mapping
 }
 
 type Config struct {
@@ -22,12 +23,26 @@ func NewDaemon(config Config) (*Daemon, error) {
 	if err := validateMappings(config.Mappings); err != nil {
 		return nil, err
 	}
-	return &Daemon{}, nil
+
+	d := Daemon{
+		mappings: config.Mappings,
+	}
+	return &d, nil
 }
 
 // Start starts the daemon and blocks until the context is cancelled. It
 // returns an error only for errors that occur during the start process.
 func (d *Daemon) Start(ctx context.Context) error {
+	pipelines := make([]*Pipeline, len(d.mappings))
+	for i, m := range d.mappings {
+		var err error
+		pipelines[i], err = StartPipeline(ctx, m, PipelineOptions{})
+		if err != nil {
+			stopPipelines(pipelines)
+			return fmt.Errorf("starting pipeline failed: %w", err)
+		}
+	}
+
 	<-ctx.Done()
 	return nil
 }
@@ -62,4 +77,12 @@ func validateMappings(mappings []groups.Mapping) error {
 	}
 
 	return nil
+}
+
+func stopPipelines(ps []*Pipeline) {
+	for _, p := range ps {
+		if p != nil {
+			p.Stop()
+		}
+	}
 }
