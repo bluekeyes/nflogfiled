@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	github.com/florianl/go-nflog/v2 v2.3.0
 	github.com/google/go-cmp v0.7.0
+	github.com/google/gopacket v1.1.19
 )
 
 require (
