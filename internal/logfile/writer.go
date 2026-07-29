@@ -6,19 +6,19 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/florianl/go-nflog/v2"
+	"github.com/bluekeyes/nflogfiled/internal/message"
 )
 
 // FormatFunc writes a formatted nflog message to the given [io.Writer]. The
 // writer will never return an error.
-type FormatFunc func(w io.Writer, msg nflog.Attribute)
+type FormatFunc func(w io.Writer, msg message.Message)
 
 type Writer struct {
-	msgs  <-chan nflog.Attribute
+	msgs  <-chan message.Message
 	fmtFn FormatFunc
 }
 
-func NewWriter(msgs <-chan nflog.Attribute, fmtFn FormatFunc) *Writer {
+func NewWriter(msgs <-chan message.Message, fmtFn FormatFunc) *Writer {
 	return &Writer{
 		msgs:  msgs,
 		fmtFn: fmtFn,

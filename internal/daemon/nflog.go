@@ -8,16 +8,30 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/bluekeyes/nflogfiled/internal/groups"
+	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/florianl/go-nflog/v2"
 )
 
-func NflogHook(ctx context.Context, msgs chan<- nflog.Attribute) nflog.HookFunc {
+func NflogHook(ctx context.Context, group groups.Group, msgs chan<- message.Message) nflog.HookFunc {
 	var msgCount, droppedMsgCount uint64
 
-	return func(attrs nflog.Attribute) int {
+	// TODO(bkeyes): Make sure this hook is not called concurrently on a single
+	// connection. If it is, we'll need locking or a pool or something.
+	parser := message.NewParser()
+
+	return func(attr nflog.Attribute) int {
 		msgCount++
+
+		// TODO(bkeyes): consider checking for a full queue before parsing
+		msg, err := parser.FromAttribute(group, &attr)
+		if err != nil {
+			slog.WarnContext(ctx, "dropped unparsable message", "error", err)
+			return 0
+		}
+
 		select {
-		case msgs <- attrs:
+		case msgs <- msg:
 		default:
 			droppedMsgCount++
 			if droppedMsgCount%100 == 1 { // TODO(bkeyes): make this configurable

@@ -9,6 +9,7 @@ import (
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/bluekeyes/nflogfiled/internal/logfile"
+	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/florianl/go-nflog/v2"
 )
 
@@ -83,7 +84,7 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 	setDefaultOptionsIfMissing(&opts)
 
 	ctx, cancel := context.WithCancel(ctx)
-	msgs := make(chan nflog.Attribute, opts.ChannelBufferSize)
+	msgs := make(chan message.Message, opts.ChannelBufferSize)
 
 	p := &Pipeline{
 		ctx:    ctx,
@@ -164,7 +165,7 @@ func (p *Pipeline) cleanup() {
 	}
 }
 
-func openNflogConn(ctx context.Context, group groups.Group, msgs chan<- nflog.Attribute, opts PipelineOptions) (*nflog.Nflog, error) {
+func openNflogConn(ctx context.Context, group groups.Group, msgs chan<- message.Message, opts PipelineOptions) (*nflog.Nflog, error) {
 	config := nflog.Config{
 		Group:    uint16(group),
 		Copymode: nflog.CopyPacket,
@@ -184,7 +185,7 @@ func openNflogConn(ctx context.Context, group groups.Group, msgs chan<- nflog.At
 		slog.WarnContext(ctx, "setting kernel read buffer size failed, continuing with kernel's default buffer", "error", err)
 	}
 
-	if err := nf.RegisterWithErrorFunc(ctx, NflogHook(ctx, msgs), NflogErrorFunc(ctx)); err != nil {
+	if err := nf.RegisterWithErrorFunc(ctx, NflogHook(ctx, group, msgs), NflogErrorFunc(ctx)); err != nil {
 		_ = nf.Close()
 		return nil, fmt.Errorf("registering nflog hook failed: %w", err)
 	}
