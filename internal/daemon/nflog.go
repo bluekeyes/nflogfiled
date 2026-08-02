@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"syscall"
+	"time"
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/bluekeyes/nflogfiled/internal/message"
@@ -24,7 +25,7 @@ func NflogHook(ctx context.Context, group groups.Group, msgs chan<- message.Mess
 		msgCount++
 
 		// TODO(bkeyes): consider checking for a full queue before parsing
-		msg, err := parser.FromAttribute(group, &attr)
+		msg, err := parser.FromAttribute(group, time.Now(), &attr)
 		if err != nil {
 			slog.WarnContext(ctx, "dropped unparsable message", "error", err)
 			return 0

@@ -25,15 +25,18 @@ type Message struct {
 	OutDevice         uint32
 	PhysicalOutDevice uint32
 
+	VLANProtocol   uint16
+	VLANIdentifier uint16
+
 	Packet Packet
 }
 
 type Packet struct {
-	Src     netip.Addr
+	SrcIP   netip.Addr
 	SrcPort uint16
 	SrcMAC  net.HardwareAddr
 
-	Dst     netip.Addr
+	DstIP   netip.Addr
 	DstPort uint16
 	DstMAC  net.HardwareAddr
 
@@ -42,5 +45,5 @@ type Packet struct {
 
 	Seq                uint32
 	Ack                uint32
-	FIN, SYN, RST, ACK bool // TODO(bkeyes): bit flags? boolean fields? drop?
+	FIN, SYN, RST, ACK bool // TODO(bkeyes): bit flags? drop?
 }
