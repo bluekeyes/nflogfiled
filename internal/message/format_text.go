@@ -1,16 +1,22 @@
 package message
 
 import (
-	"encoding"
+	"net/netip"
 	"strconv"
+	"time"
 )
 
-type TextFormatter struct{}
+type TextFormatter struct {
+	// This is a shared field to avoid allocation on each Format call. The use
+	// of the 'writer' interface by 'formatMessage' otherwise causes a local
+	// allocation to escape to the heap.
+	w textWriter
+}
 
-func (tf TextFormatter) Format(b []byte, msg Message) []byte {
-	w := textWriter{b: b}
-	formatMessage(&w, msg)
-	return w.b
+func (tf *TextFormatter) Format(b []byte, msg Message) []byte {
+	tf.w.Reset(b)
+	formatMessage(&tf.w, msg)
+	return tf.w.b
 }
 
 type textWriter struct {
@@ -18,12 +24,10 @@ type textWriter struct {
 	hasPrevious bool
 }
 
-// TODO(bkeyes): possible optimization: use slices.Grow in each function to
-// guarantee at most one allocation. In practice, because the buffer is
-// perpetually reused, allocations should only happen when a new message is
-// either longer than the initial buffer size or longer than any previous
-// message. Amortized over all messages, it's probably not worth the extra
-// complexity of slices.Grow calls, especially if the total size isn't known.
+func (w *textWriter) Reset(b []byte) {
+	w.b = b
+	w.hasPrevious = false
+}
 
 func (w *textWriter) Open() {
 }
@@ -40,7 +44,13 @@ func (w *textWriter) UintField(name string, value uint64) {
 	w.b = b
 }
 
-func (w *textWriter) TextField(name string, value encoding.TextAppender) {
+func (w *textWriter) TimeField(name string, value time.Time) {
+	b := w.fieldName(name)
+	b, _ = value.AppendText(b)
+	w.b = b
+}
+
+func (w *textWriter) AddrField(name string, value netip.Addr) {
 	b := w.fieldName(name)
 	b, _ = value.AppendText(b)
 	w.b = b

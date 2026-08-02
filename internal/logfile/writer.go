@@ -11,18 +11,21 @@ const (
 	initialMessageBufferSize = 1024
 )
 
-// FormatFunc appends a formatted nflog message to b and returns the result.
-type FormatFunc func(b []byte, msg message.Message) []byte
-
-type Writer struct {
-	msgs  <-chan message.Message
-	fmtFn FormatFunc
+// Fromatter defines the Format function, which appends a formatted nflog
+// message to b and returns the result.
+type Formatter interface {
+	Format(b []byte, msg message.Message) []byte
 }
 
-func NewWriter(msgs <-chan message.Message, fmtFn FormatFunc) *Writer {
+type Writer struct {
+	msgs <-chan message.Message
+	fmt  Formatter
+}
+
+func NewWriter(msgs <-chan message.Message, fmt Formatter) *Writer {
 	return &Writer{
-		msgs:  msgs,
-		fmtFn: fmtFn,
+		msgs: msgs,
+		fmt:  fmt,
 	}
 }
 
@@ -34,7 +37,7 @@ func (w *Writer) Write(ctx context.Context, f *File) {
 	for {
 		select {
 		case msg := <-w.msgs:
-			buf = w.fmtFn(buf, msg)
+			buf = w.fmt.Format(buf, msg)
 			if _, err := f.Write(buf); err != nil {
 				slog.ErrorContext(ctx, "error writing message", "error", err)
 			}

@@ -1,16 +1,22 @@
 package message
 
 import (
-	"encoding"
+	"net/netip"
 	"strconv"
+	"time"
 )
 
-type JSONFormatter struct{}
+type JSONFormatter struct {
+	// This is a shared field to avoid allocation on each Format call. The use
+	// of the 'writer' interface by 'formatMessage' otherwise causes a local
+	// allocation to escape to the heap.
+	w jsonWriter
+}
 
-func (jf JSONFormatter) Format(b []byte, msg Message) []byte {
-	w := jsonWriter{b: b}
-	formatMessage(&w, msg)
-	return w.b
+func (jf *JSONFormatter) Format(b []byte, msg Message) []byte {
+	jf.w.Reset(b)
+	formatMessage(&jf.w, msg)
+	return jf.w.b
 }
 
 type jsonWriter struct {
@@ -18,12 +24,10 @@ type jsonWriter struct {
 	hasPrevious bool
 }
 
-// TODO(bkeyes): possible optimization: use slices.Grow in each function to
-// guarantee at most one allocation. In practice, because the buffer is
-// perpetually reused, allocations should only happen when a new message is
-// either longer than the initial buffer size or longer than any previous
-// message. Amortized over all messages, it's probably not worth the extra
-// complexity of slices.Grow calls, especially if the total size isn't known.
+func (w *jsonWriter) Reset(b []byte) {
+	w.b = b
+	w.hasPrevious = false
+}
 
 func (w *jsonWriter) Open() {
 	w.b = append(w.b, '{')
@@ -43,7 +47,15 @@ func (w *jsonWriter) UintField(name string, value uint64) {
 	w.b = b
 }
 
-func (w *jsonWriter) TextField(name string, value encoding.TextAppender) {
+func (w *jsonWriter) TimeField(name string, value time.Time) {
+	b := w.fieldName(name)
+	b = append(b, '"')
+	b, _ = value.AppendText(b)
+	b = append(b, '"')
+	w.b = b
+}
+
+func (w *jsonWriter) AddrField(name string, value netip.Addr) {
 	b := w.fieldName(name)
 	b = append(b, '"')
 	b, _ = value.AppendText(b)
