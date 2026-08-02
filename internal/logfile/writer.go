@@ -1,17 +1,18 @@
 package logfile
 
 import (
-	"bytes"
 	"context"
-	"io"
 	"log/slog"
 
 	"github.com/bluekeyes/nflogfiled/internal/message"
 )
 
-// FormatFunc writes a formatted nflog message to the given [io.Writer]. The
-// writer will never return an error.
-type FormatFunc func(w io.Writer, msg message.Message)
+const (
+	initialMessageBufferSize = 1024
+)
+
+// FormatFunc appends a formatted nflog message to b and returns the result.
+type FormatFunc func(b []byte, msg message.Message) []byte
 
 type Writer struct {
 	msgs  <-chan message.Message
@@ -29,14 +30,15 @@ func NewWriter(msgs <-chan message.Message, fmtFn FormatFunc) *Writer {
 // cancelled. Before it returns, it closes the file, flushing any data. Write
 // logs any errors encountered while writing messages.
 func (w *Writer) Write(ctx context.Context, f *File) {
-	var buf bytes.Buffer
+	buf := make([]byte, 0, initialMessageBufferSize)
 	for {
 		select {
 		case msg := <-w.msgs:
-			w.fmtFn(&buf, msg)
-			if _, err := buf.WriteTo(f); err != nil {
+			buf = w.fmtFn(buf, msg)
+			if _, err := f.Write(buf); err != nil {
 				slog.ErrorContext(ctx, "error writing message", "error", err)
 			}
+			buf = buf[:0]
 
 		case <-ctx.Done():
 			if err := f.Close(); err != nil {
