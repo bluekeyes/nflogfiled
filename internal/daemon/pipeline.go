@@ -44,7 +44,7 @@ type Pipeline struct {
 }
 
 type PipelineOptions struct {
-	Format     logfile.FormatFunc
+	Format     logfile.Formatter
 	FileMode   fs.FileMode
 	Unbuffered bool
 
