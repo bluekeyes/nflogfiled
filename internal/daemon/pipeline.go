@@ -38,15 +38,13 @@ type Pipeline struct {
 	writeDone   chan struct{}
 	w           *logfile.Writer
 
-	fileName     string
-	fileMode     fs.FileMode
-	fileBuffered bool
+	fileName string
+	fileMode fs.FileMode
 }
 
 type PipelineOptions struct {
-	Format     logfile.Formatter
-	FileMode   fs.FileMode
-	Unbuffered bool
+	Format   logfile.Formatter
+	FileMode fs.FileMode
 
 	ChannelBufferSize    int
 	PacketBufferSize     uint32
@@ -93,9 +91,8 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 		conns: make([]*nflog.Nflog, len(mapping.Groups)),
 		w:     logfile.NewWriter(msgs, opts.Format),
 
-		fileName:     mapping.File,
-		fileMode:     opts.FileMode,
-		fileBuffered: !opts.Unbuffered,
+		fileName: mapping.File,
+		fileMode: opts.FileMode,
 	}
 
 	for i, g := range mapping.Groups {
@@ -132,10 +129,10 @@ func (p *Pipeline) ReloadFile() error {
 func (p *Pipeline) startWriter() error {
 	var f *logfile.File
 	if p.fileName == StdoutFileName {
-		f = logfile.Stdout(p.fileBuffered)
+		f = logfile.Stdout()
 	} else {
 		var err error
-		f, err = logfile.Open(p.fileName, p.fileMode, p.fileBuffered)
+		f, err = logfile.Open(p.fileName, p.fileMode)
 		if err != nil {
 			return fmt.Errorf("opening output file failed: %w", err)
 		}
