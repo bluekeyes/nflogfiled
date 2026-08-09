@@ -46,6 +46,10 @@ func NewParser() *Parser {
 		&p.ip6Buf, &p.tcpBuf, &p.udpBuf,
 	)
 
+	p.ethParser.IgnoreUnsupported = true
+	p.ip4Parser.IgnoreUnsupported = true
+	p.ip6Parser.IgnoreUnsupported = true
+
 	return &p
 }
 
