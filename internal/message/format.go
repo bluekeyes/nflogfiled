@@ -49,7 +49,7 @@ func formatMessage(w writer, msg Message, fields FieldSet) {
 		w.AddrField("dst_ip", msg.Packet.DstIP)
 	}
 	if output(FieldPacketDstPort) {
-		w.UintField("src_port", uint64(msg.Packet.DstPort))
+		w.UintField("dst_port", uint64(msg.Packet.DstPort))
 	}
 	if output(FieldPacketTTL) {
 		w.UintField("packet_ttl", uint64(msg.Packet.TTL))
