@@ -57,7 +57,7 @@ type PipelineOptions struct {
 
 func setDefaultOptionsIfMissing(opts *PipelineOptions) {
 	if opts.Format == nil {
-		// TODO(bkeyes): set a default format functions here
+		opts.Format = message.TextFormatter{Fields: message.AllFields}
 	}
 	if opts.FileMode == 0 {
 		opts.FileMode = DefaultFileMode
