@@ -51,25 +51,27 @@ func NewParser() *Parser {
 
 func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *nflog.Attribute) (Message, error) {
 	msg := Message{
+		Fields:     FieldGroup | FieldReceivedAt,
 		Group:      group,
 		ReceivedAt: receivedAt,
 	}
 
-	setIfNotNil(&msg.Hook, attr.Hook)
-	setIfNotNil(&msg.Mark, attr.Mark)
-	setIfNotNil(&msg.Prefix, attr.Prefix)
-	setIfNotNil(&msg.UID, attr.UID)
-	setIfNotNil(&msg.GID, attr.GID)
+	setIfNotNil(&msg, &msg.Hook, attr.Hook, FieldHook)
+	setIfNotNil(&msg, &msg.Mark, attr.Mark, FieldMark)
+	setIfNotNil(&msg, &msg.Prefix, attr.Prefix, FieldPrefix)
+	setIfNotNil(&msg, &msg.UID, attr.UID, FieldUID)
+	setIfNotNil(&msg, &msg.GID, attr.GID, FieldGID)
 
-	setIfNotNil(&msg.InDevice, attr.InDev)
-	setIfNotNil(&msg.PhysicalInDevice, attr.PhysInDev)
+	setIfNotNil(&msg, &msg.InDevice, attr.InDev, FieldInDevice)
+	setIfNotNil(&msg, &msg.PhysicalInDevice, attr.PhysInDev, FieldPhysicalInDevice)
 
-	setIfNotNil(&msg.OutDevice, attr.OutDev)
-	setIfNotNil(&msg.PhysicalOutDevice, attr.PhysOutDev)
+	setIfNotNil(&msg, &msg.OutDevice, attr.OutDev, FieldOutDevice)
+	setIfNotNil(&msg, &msg.PhysicalOutDevice, attr.PhysOutDev, FieldPhysicalOutDevice)
 
 	if attr.VLAN != nil {
 		msg.VLANProtocol = attr.VLAN.Proto
 		msg.VLANIdentifier = attr.VLAN.TCI & 0x0FFF
+		msg.Fields.Set(FieldVLANProtocol | FieldVLANIdentifier)
 	}
 
 	if attr.HwType != nil && *attr.HwType == uint16(layers.LinkTypeEthernet) {
@@ -78,6 +80,7 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 		}
 		msg.Packet.SrcMAC = p.ethBuf.SrcMAC
 		msg.Packet.DstMAC = p.ethBuf.DstMAC
+		msg.Fields.Set(FieldPacketSrcMAC | FieldPacketDstMAC)
 	}
 
 	// Default to assuming the payload packet is a full ethernet packet unless
@@ -102,27 +105,33 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 				msg.Packet.SrcIP, _ = netip.AddrFromSlice(p.ip4Buf.SrcIP)
 				msg.Packet.DstIP, _ = netip.AddrFromSlice(p.ip4Buf.DstIP)
 				msg.Packet.TTL = p.ip4Buf.TTL
-				msg.Packet.Protocol = uint8(p.ip4Buf.Protocol)
+				msg.Packet.Protocol = p.ip4Buf.Protocol
+				msg.Fields.Set(FieldPacketSrcIP | FieldPacketDstIP | FieldPacketTTL | FieldPacketProtocol)
 
 			case layers.LayerTypeIPv6:
 				msg.Packet.SrcIP, _ = netip.AddrFromSlice(p.ip6Buf.SrcIP)
 				msg.Packet.DstIP, _ = netip.AddrFromSlice(p.ip6Buf.DstIP)
 				msg.Packet.TTL = p.ip6Buf.HopLimit
-				msg.Packet.Protocol = uint8(p.ip6Buf.NextHeader)
+				msg.Packet.Protocol = p.ip6Buf.NextHeader
+				msg.Fields.Set(FieldPacketSrcIP | FieldPacketDstIP | FieldPacketTTL | FieldPacketProtocol)
 
 			case layers.LayerTypeTCP:
 				msg.Packet.SrcPort = uint16(p.tcpBuf.SrcPort)
 				msg.Packet.DstPort = uint16(p.tcpBuf.DstPort)
+				msg.Fields.Set(FieldPacketSrcPort | FieldPacketDstPort)
+
 				msg.Packet.Seq = p.tcpBuf.Seq
 				msg.Packet.Ack = p.tcpBuf.Ack
 				msg.Packet.FIN = p.tcpBuf.FIN
 				msg.Packet.SYN = p.tcpBuf.SYN
 				msg.Packet.RST = p.tcpBuf.RST
 				msg.Packet.ACK = p.tcpBuf.ACK
+				msg.Fields.Set(FieldPacketSeq | FieldPacketAck | FieldPacketFINFlag | FieldPacketSYNFlag | FieldPacketRSTFlag | FieldPacketACKFlag)
 
 			case layers.LayerTypeUDP:
 				msg.Packet.SrcPort = uint16(p.udpBuf.SrcPort)
 				msg.Packet.DstPort = uint16(p.udpBuf.DstPort)
+				msg.Fields.Set(FieldPacketSrcPort | FieldPacketDstPort)
 			}
 		}
 	}
@@ -130,8 +139,9 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 	return msg, nil
 }
 
-func setIfNotNil[T any](dst *T, src *T) {
+func setIfNotNil[T any](msg *Message, dst *T, src *T, f FieldSet) {
 	if src != nil {
 		*dst = *src
+		msg.Fields.Set(f)
 	}
 }

@@ -1,12 +1,15 @@
 package message
 
 import (
+	"encoding/json/jsontext"
 	"net/netip"
 	"strconv"
 	"time"
 )
 
 type JSONFormatter struct {
+	Fields FieldSet
+
 	// This is a shared field to avoid allocation on each Format call. The use
 	// of the 'writer' interface by 'formatMessage' otherwise causes a local
 	// allocation to escape to the heap.
@@ -15,7 +18,7 @@ type JSONFormatter struct {
 
 func (jf *JSONFormatter) Format(b []byte, msg Message) []byte {
 	jf.w.Reset(b)
-	formatMessage(&jf.w, msg)
+	formatMessage(&jf.w, msg, jf.Fields)
 	return jf.w.b
 }
 
@@ -38,6 +41,12 @@ func (w *jsonWriter) StringField(name string, value string) {
 	b = append(b, '"')
 	b = append(b, []byte(value)...)
 	b = append(b, '"')
+	w.b = b
+}
+
+func (w *jsonWriter) QuoteField(name string, value string) {
+	b := w.fieldName(name)
+	b, _ = jsontext.AppendQuote(b, value)
 	w.b = b
 }
 

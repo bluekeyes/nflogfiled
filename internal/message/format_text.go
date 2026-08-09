@@ -7,6 +7,8 @@ import (
 )
 
 type TextFormatter struct {
+	Fields FieldSet
+
 	// This is a shared field to avoid allocation on each Format call. The use
 	// of the 'writer' interface by 'formatMessage' otherwise causes a local
 	// allocation to escape to the heap.
@@ -15,7 +17,7 @@ type TextFormatter struct {
 
 func (tf *TextFormatter) Format(b []byte, msg Message) []byte {
 	tf.w.Reset(b)
-	formatMessage(&tf.w, msg)
+	formatMessage(&tf.w, msg, tf.Fields)
 	return tf.w.b
 }
 
@@ -35,6 +37,12 @@ func (w *textWriter) Open() {
 func (w *textWriter) StringField(name string, value string) {
 	b := w.fieldName(name)
 	b = append(b, []byte(value)...)
+	w.b = b
+}
+
+func (w *textWriter) QuoteField(name string, value string) {
+	b := w.fieldName(name)
+	b = strconv.AppendQuote(b, value)
 	w.b = b
 }
 
