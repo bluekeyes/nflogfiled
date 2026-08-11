@@ -1,18 +1,14 @@
 package logfile
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 )
 
-type File struct {
-	f   *os.File
-	std bool
-}
-
 // Open opens the file at name for writing, creating it and any parent
 // directories if they doesn't exist.
-func Open(name string, mode os.FileMode) (*File, error) {
+func Open(name string, mode os.FileMode) (*os.File, error) {
 	dir := filepath.Dir(name)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
@@ -22,26 +18,21 @@ func Open(name string, mode os.FileMode) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return &File{f: f}, nil
+	return f, nil
 }
 
-func (f *File) Write(p []byte) (n int, err error) {
-	return f.f.Write(p)
+// Stdout returns an io.WriteCloser for standard output. Closing the writer
+// does not close underlying stdout handle.
+func Stdout() io.WriteCloser {
+	return stdoutWriteCloser{}
 }
 
-func (f *File) Close() error {
-	if f.std {
-		return nil
-	}
-	return f.f.Close()
+type stdoutWriteCloser struct{}
+
+func (w stdoutWriteCloser) Write(p []byte) (n int, err error) {
+	return os.Stdout.Write(p)
 }
 
-// Stdout returns a File for standard output. Closing the File does not close
-// underlying stdout handle.
-func Stdout() *File {
-	return &File{
-		f:   os.Stdout,
-		std: true,
-	}
+func (w stdoutWriteCloser) Close() error {
+	return nil
 }

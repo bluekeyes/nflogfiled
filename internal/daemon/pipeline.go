@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"time"
@@ -127,12 +128,12 @@ func (p *Pipeline) ReloadFile() error {
 }
 
 func (p *Pipeline) startWriter() error {
-	var f *logfile.File
+	var dst io.WriteCloser
 	if p.fileName == StdoutFileName {
-		f = logfile.Stdout()
+		dst = logfile.Stdout()
 	} else {
 		var err error
-		f, err = logfile.Open(p.fileName, p.fileMode)
+		dst, err = logfile.Open(p.fileName, p.fileMode)
 		if err != nil {
 			return fmt.Errorf("opening output file failed: %w", err)
 		}
@@ -142,7 +143,7 @@ func (p *Pipeline) startWriter() error {
 	p.writeCancel = cancel
 
 	go func() {
-		p.w.Write(ctx, f)
+		p.w.Write(ctx, dst)
 		p.writeDone <- struct{}{}
 	}()
 

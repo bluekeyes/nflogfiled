@@ -2,6 +2,7 @@ package logfile
 
 import (
 	"context"
+	"io"
 	"log/slog"
 
 	"github.com/bluekeyes/nflogfiled/internal/message"
@@ -29,22 +30,22 @@ func NewWriter(msgs <-chan message.Message, fmt Formatter) *Writer {
 	}
 }
 
-// Write writes messages from the channel to the file until the context is
-// cancelled. Before it returns, it closes the file, flushing any data. Write
+// Write writes messages from the channel to the writer until the context is
+// cancelled. Before it returns, it closes the writer, flushing any data. Write
 // logs any errors encountered while writing messages.
-func (w *Writer) Write(ctx context.Context, f *File) {
+func (w *Writer) Write(ctx context.Context, dst io.WriteCloser) {
 	buf := make([]byte, 0, initialMessageBufferSize)
 	for {
 		select {
 		case msg := <-w.msgs:
 			buf = w.fmt.Format(buf, msg)
-			if _, err := f.Write(buf); err != nil {
+			if _, err := dst.Write(buf); err != nil {
 				slog.ErrorContext(ctx, "error writing message", "error", err)
 			}
 			buf = buf[:0]
 
 		case <-ctx.Done():
-			if err := f.Close(); err != nil {
+			if err := dst.Close(); err != nil {
 				slog.ErrorContext(ctx, "error closing writer", "error", err)
 			}
 			return
