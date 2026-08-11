@@ -13,11 +13,11 @@ func formatMessage(w writer, msg Message, fields FieldSet) {
 	}
 
 	w.Open()
-	if output(FieldGroup) {
-		w.UintField("group", uint64(msg.Group))
-	}
 	if output(FieldReceivedAt) {
 		w.TimeField("timestamp", msg.ReceivedAt)
+	}
+	if output(FieldGroup) {
+		w.UintField("group", uint64(msg.Group))
 	}
 	if output(FieldPrefix) {
 		w.QuoteField("prefix", msg.Prefix)
