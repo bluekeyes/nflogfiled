@@ -14,7 +14,7 @@ func Open(name string, mode os.FileMode) (*os.File, error) {
 		return nil, err
 	}
 
-	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY, mode)
+	f, err := os.OpenFile(name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, mode)
 	if err != nil {
 		return nil, err
 	}
