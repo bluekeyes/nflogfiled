@@ -52,6 +52,8 @@ type PipelineOptions struct {
 	KernelReadBufferSize int
 	KernelFlushTimeout   time.Duration
 	KernelFlushCount     uint32
+
+	NowFunc func() time.Time
 }
 
 func setDefaultOptionsIfMissing(opts *PipelineOptions) {
@@ -76,6 +78,10 @@ func setDefaultOptionsIfMissing(opts *PipelineOptions) {
 	}
 	if opts.KernelFlushCount == 0 {
 		opts.KernelFlushCount = DefaultKernelFlushCount
+	}
+
+	if opts.NowFunc == nil {
+		opts.NowFunc = time.Now
 	}
 }
 
@@ -183,7 +189,7 @@ func openNflogConn(ctx context.Context, group groups.Group, msgs chan<- message.
 		slog.WarnContext(ctx, "setting kernel read buffer size failed, continuing with kernel's default buffer", "error", err)
 	}
 
-	if err := nf.RegisterWithErrorFunc(ctx, NflogHook(ctx, group, msgs), NflogErrorFunc(ctx)); err != nil {
+	if err := nf.RegisterWithErrorFunc(ctx, NflogHook(ctx, group, msgs, opts.NowFunc), NflogErrorFunc(ctx)); err != nil {
 		_ = nf.Close()
 		return nil, fmt.Errorf("registering nflog hook failed: %w", err)
 	}

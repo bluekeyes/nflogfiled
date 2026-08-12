@@ -14,7 +14,10 @@ import (
 	"github.com/florianl/go-nflog/v2"
 )
 
-func NflogHook(ctx context.Context, group groups.Group, msgs chan<- message.Message) nflog.HookFunc {
+// NflogHook returns a hook function that converts nflog.Attribute structs to
+// message.Message structs, writing them to msgs. It calls the now function for
+// each message to to retrieve the received at timestamp.
+func NflogHook(ctx context.Context, group groups.Group, msgs chan<- message.Message, now func() time.Time) nflog.HookFunc {
 	var msgCount, droppedMsgCount uint64
 
 	// TODO(bkeyes): Make sure this hook is not called concurrently on a single
@@ -25,7 +28,7 @@ func NflogHook(ctx context.Context, group groups.Group, msgs chan<- message.Mess
 		msgCount++
 
 		// TODO(bkeyes): consider checking for a full queue before parsing
-		msg, err := parser.FromAttribute(group, time.Now(), &attr)
+		msg, err := parser.FromAttribute(group, now(), &attr)
 		if err != nil {
 			slog.WarnContext(ctx, "dropped unparsable message", "error", err)
 			return 0
