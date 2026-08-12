@@ -92,14 +92,13 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 	msgs := make(chan message.Message, opts.ChannelBufferSize)
 
 	p := &Pipeline{
-		ctx:    ctx,
-		cancel: cancel,
-
-		conns: make([]*nflog.Nflog, len(mapping.Groups)),
-		w:     logfile.NewWriter(msgs, opts.Format),
-
-		fileName: mapping.File,
-		fileMode: opts.FileMode,
+		ctx:       ctx,
+		cancel:    cancel,
+		conns:     make([]*nflog.Nflog, len(mapping.Groups)),
+		writeDone: make(chan struct{}),
+		w:         logfile.NewWriter(msgs, opts.Format),
+		fileName:  mapping.File,
+		fileMode:  opts.FileMode,
 	}
 
 	for i, g := range mapping.Groups {
