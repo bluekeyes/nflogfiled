@@ -32,6 +32,14 @@ var prefixOptions = []string{
 	"this_is_a_very_long_topic_with_sixty_three_characters__________",
 }
 
+func GenerateBatch(v *Values, n int) []Case {
+	cases := make([]Case, n)
+	for i := range n {
+		cases[i] = Generate(v)
+	}
+	return cases
+}
+
 // Generate produces a single random test case.
 func Generate(v *Values) Case {
 	var attr nflog.Attribute
@@ -138,7 +146,7 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 			DstIP:    net.IP(dstAddr.AsSlice()),
 		}
 	} else {
-		srcAddr, dstAddr := v.IPv6Addr(), v.IPv4Addr()
+		srcAddr, dstAddr := v.IPv6Addr(), v.IPv6Addr()
 		want.SrcIP, want.DstIP = &srcAddr, &dstAddr
 
 		ipLayer = &layers.IPv6{
