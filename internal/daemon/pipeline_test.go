@@ -70,6 +70,12 @@ func checkCases(t *testing.T, cases []testgen.Case) {
 		wantObs[i] = c.Want
 	}
 
+	// If any of the messages was invalid, exit early because the comparisons
+	// will also fail due to the incomplete observations
+	if t.Failed() {
+		return
+	}
+
 	if diff := cmp.Diff(wantObs, textObs, cmpOpts...); diff != "" {
 		t.Errorf("incorrect text observations (-want, +got):\n%s", diff)
 	}

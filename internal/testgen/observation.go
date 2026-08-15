@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"net"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -18,13 +19,19 @@ import (
 type Observation struct {
 	Timestamp *time.Time
 	Group     *groups.Group
+	Hook      *uint8
+	Mark      *uint32
 	Prefix    *string
+	UID       *uint32
+	GID       *uint32
 	VLANID    *uint16
 	Protocol  *uint8
 	SrcIP     *netip.Addr
 	SrcPort   *uint16
+	SrcMAC    *net.HardwareAddr
 	DstIP     *netip.Addr
 	DstPort   *uint16
+	DstMAC    *net.HardwareAddr
 	TTL       *uint8
 }
 
@@ -110,19 +117,45 @@ func setField(o *Observation, name, value string) error {
 		if err != nil {
 			return fmt.Errorf("field group: %w", err)
 		}
-		group := groups.Group(v)
-		o.Group = &group
+		o.Group = new(groups.Group(v))
+
+	case "hook":
+		v, err := strconv.ParseUint(value, 10, 8)
+		if err != nil {
+			return fmt.Errorf("field hook: %w", err)
+		}
+		o.Hook = new(uint8(v))
+
+	case "mark":
+		v, err := strconv.ParseUint(value, 10, 32)
+		if err != nil {
+			return fmt.Errorf("field mark: %w", err)
+		}
+		o.Mark = new(uint32(v))
 
 	case "prefix":
 		o.Prefix = &value
+
+	case "uid":
+		v, err := strconv.ParseUint(value, 10, 32)
+		if err != nil {
+			return fmt.Errorf("field uid: %w", err)
+		}
+		o.UID = new(uint32(v))
+
+	case "gid":
+		v, err := strconv.ParseUint(value, 10, 32)
+		if err != nil {
+			return fmt.Errorf("field gid: %w", err)
+		}
+		o.GID = new(uint32(v))
 
 	case "vlan_id":
 		v, err := strconv.ParseUint(value, 10, 16)
 		if err != nil {
 			return fmt.Errorf("field vlan_id: %w", err)
 		}
-		vlanID := uint16(v)
-		o.VLANID = &vlanID
+		o.VLANID = new(uint16(v))
 
 	case "protocol":
 		p, err := parseProtocol(value)
@@ -143,8 +176,14 @@ func setField(o *Observation, name, value string) error {
 		if err != nil {
 			return fmt.Errorf("field src_port: %w", err)
 		}
-		port := uint16(v)
-		o.SrcPort = &port
+		o.SrcPort = new(uint16(v))
+
+	case "src_mac":
+		addr, err := net.ParseMAC(value)
+		if err != nil {
+			return fmt.Errorf("field src_mac: %w", err)
+		}
+		o.SrcMAC = &addr
 
 	case "dst_ip":
 		addr, err := netip.ParseAddr(value)
@@ -158,16 +197,21 @@ func setField(o *Observation, name, value string) error {
 		if err != nil {
 			return fmt.Errorf("field dst_port: %w", err)
 		}
-		port := uint16(v)
-		o.DstPort = &port
+		o.DstPort = new(uint16(v))
+
+	case "dst_mac":
+		addr, err := net.ParseMAC(value)
+		if err != nil {
+			return fmt.Errorf("field dst_mac: %w", err)
+		}
+		o.DstMAC = &addr
 
 	case "packet_ttl":
 		v, err := strconv.ParseUint(value, 10, 8)
 		if err != nil {
 			return fmt.Errorf("field packet_ttl: %w", err)
 		}
-		ttl := uint8(v)
-		o.TTL = &ttl
+		o.TTL = new(uint8(v))
 
 	default:
 		return fmt.Errorf("unknown field %q", name)

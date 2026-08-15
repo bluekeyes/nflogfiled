@@ -19,8 +19,20 @@ func formatMessage(w writer, msg Message, fields FieldSet) {
 	if output(FieldGroup) {
 		w.UintField("group", uint64(msg.Group))
 	}
+	if output(FieldHook) {
+		w.UintField("hook", uint64(msg.Hook))
+	}
+	if output(FieldMark) {
+		w.UintField("mark", uint64(msg.Mark))
+	}
 	if output(FieldPrefix) {
 		w.QuoteField("prefix", msg.Prefix)
+	}
+	if output(FieldUID) {
+		w.UintField("uid", uint64(msg.UID))
+	}
+	if output(FieldGID) {
+		w.UintField("gid", uint64(msg.GID))
 	}
 	if output(FieldVLANIdentifier) {
 		w.UintField("vlan_id", uint64(msg.VLANIdentifier))
@@ -45,11 +57,17 @@ func formatMessage(w writer, msg Message, fields FieldSet) {
 	if output(FieldPacketSrcPort) {
 		w.UintField("src_port", uint64(msg.Packet.SrcPort))
 	}
+	if output(FieldPacketSrcMAC) {
+		w.StringField("src_mac", msg.Packet.SrcMAC.String())
+	}
 	if output(FieldPacketDstIP) {
 		w.AddrField("dst_ip", msg.Packet.DstIP)
 	}
 	if output(FieldPacketDstPort) {
 		w.UintField("dst_port", uint64(msg.Packet.DstPort))
+	}
+	if output(FieldPacketDstMAC) {
+		w.StringField("dst_mac", msg.Packet.DstMAC.String())
 	}
 	if output(FieldPacketTTL) {
 		w.UintField("packet_ttl", uint64(msg.Packet.TTL))

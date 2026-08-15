@@ -53,11 +53,11 @@ func Generate(v *Values) Case {
 
 	if v.Bool() {
 		hook := v.Uint8()
-		attr.Hook = &hook
+		attr.Hook, want.Hook = &hook, &hook
 	}
 	if v.Bool() {
 		mark := v.Uint32()
-		attr.Mark = &mark
+		attr.Mark, want.Mark = &mark, &mark
 	}
 
 	inDev, outDev := v.Uint32(), v.Uint32()
@@ -72,13 +72,12 @@ func Generate(v *Values) Case {
 
 	if v.Bool() {
 		uid, gid := v.Uint32(), v.Uint32()
-		attr.UID = &uid
-		attr.GID = &gid
+		attr.UID, want.UID = &uid, &uid
+		attr.GID, want.GID = &gid, &gid
 	}
 
 	prefix := Pick(v, prefixOptions...)
-	attr.Prefix = &prefix
-	want.Prefix = &prefix
+	attr.Prefix, want.Prefix = &prefix, &prefix
 
 	if v.Bool() {
 		tci := v.Uint16()
@@ -86,8 +85,7 @@ func Generate(v *Values) Case {
 			Proto: 0x8100,
 			TCI:   tci,
 		}
-		vlanid := tci & 0xFFF
-		want.VLANID = &vlanid
+		want.VLANID = new(tci & 0xFFF)
 	}
 
 	generatePacket(v, &attr, &want)
@@ -201,9 +199,14 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 		if ipVersion == 6 {
 			ethType = layers.EthernetTypeIPv6
 		}
+
+		srcMAC := net.HardwareAddr(v.Bytes(6))
+		dstMAC := net.HardwareAddr(v.Bytes(6))
+		want.SrcMAC, want.DstMAC = &srcMAC, &dstMAC
+
 		ls = append(ls, &layers.Ethernet{
-			SrcMAC:       net.HardwareAddr(v.Bytes(6)),
-			DstMAC:       net.HardwareAddr(v.Bytes(6)),
+			SrcMAC:       srcMAC,
+			DstMAC:       dstMAC,
 			EthernetType: ethType,
 		})
 	}
