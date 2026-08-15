@@ -1,7 +1,9 @@
 package testgen
 
 import (
+	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
@@ -17,6 +19,82 @@ type Case struct {
 	ReceivedAt time.Time
 	Attr       nflog.Attribute
 	Want       Observation
+}
+
+func (c Case) String() string {
+	var s strings.Builder
+	s.WriteString("Case{\n")
+
+	fmt.Fprintf(&s, "\tGroup: %d,\n", c.Group)
+	fmt.Fprintf(&s, "\tReceivedAt: %s,\n", c.ReceivedAt)
+
+	s.WriteString("\tAttr: ")
+	nflogAttributeString(&s, c.Attr)
+
+	s.WriteString("\n}")
+
+	return s.String()
+}
+
+func nflogAttributeString(s *strings.Builder, attr nflog.Attribute) {
+	s.WriteString("nflog.Attribute{\n")
+
+	attrField(s, "Hook", attr.Hook)
+	attrField(s, "Mark", attr.Mark)
+	attrField(s, "Timestamp", attr.Timestamp)
+	attrField(s, "InDev", attr.InDev)
+	attrField(s, "PhysInDev", attr.PhysInDev)
+	attrField(s, "OutDev", attr.OutDev)
+	attrField(s, "PhysOutDev", attr.PhysOutDev)
+	attrField(s, "Payload", attr.Payload)
+	attrField(s, "Prefix", attr.Prefix)
+	attrField(s, "UID", attr.UID)
+	attrField(s, "Seq", attr.Seq)
+	attrField(s, "SeqGlobal", attr.SeqGlobal)
+	attrField(s, "GID", attr.GID)
+	attrField(s, "HwType", attr.HwType)
+	attrField(s, "HwAddr", attr.HwAddr)
+	attrField(s, "HwHeader", attr.HwHeader)
+	attrField(s, "HwLen", attr.HwLen)
+	attrField(s, "HwProtocol", attr.HwProtocol)
+	attrField(s, "CtInfo", attr.CtInfo)
+	attrField(s, "Ct", attr.Ct)
+	attrField(s, "Layer2Hdr", attr.Layer2Hdr)
+
+	if attr.VLAN != nil {
+		fmt.Fprintf(s, "\t\tVLAN{Proto: 0x%04x, TCI: 0x%04x},\n", attr.VLAN.Proto, attr.VLAN.TCI)
+	}
+
+	s.WriteString("\t}")
+}
+
+func attrField[V any](s *strings.Builder, field string, value *V) {
+	const bytesPerLine = 24
+
+	if value != nil {
+		s.WriteString("\t\t")
+		s.WriteString(field)
+		s.WriteString(": ")
+
+		switch v := any(*value).(type) {
+		case []byte:
+			s.WriteString("[]byte{\n")
+			for i := 0; i < len(v); i += bytesPerLine {
+				fmt.Fprintf(s, "\t\t\t%03d:", i)
+				for _, b := range v[i:min(i+bytesPerLine, len(v))] {
+					fmt.Fprintf(s, " %02x", b)
+				}
+				s.WriteString("\n")
+			}
+			s.WriteString("\t\t}")
+		case string:
+			fmt.Fprintf(s, "%q", v)
+		default:
+			fmt.Fprintf(s, "%v", v)
+		}
+
+		s.WriteString(",\n")
+	}
 }
 
 var prefixOptions = []string{

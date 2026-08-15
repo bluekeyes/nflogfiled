@@ -2,10 +2,12 @@ package daemon_test
 
 import (
 	"context"
+	"fmt"
 	"math/rand/v2"
 	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,26 +34,33 @@ func TestRandomMessagePipeline(t *testing.T) {
 		v := testgen.NewValues(rand.NewPCG(seed, uint64(i)))
 		cases := testgen.GenerateBatch(v, 1+v.IntN(8))
 
-		checkCases(t, cases)
+		if errs := checkCases(t.Context(), cases); len(errs) > 0 {
+			var casesStr strings.Builder
+			for i, c := range cases {
+				fmt.Fprintf(&casesStr, "%d: %s\n", i, c)
+			}
+			t.Logf("iteration=%d cases=%d cases[]=\n%s", i, len(cases), casesStr.String())
 
-		if t.Failed() {
-			break
+			for _, err := range errs {
+				t.Log(err)
+			}
+			t.FailNow()
 		}
 	}
 }
 
-func checkCases(t *testing.T, cases []testgen.Case) {
-	t.Helper()
+func checkCases(ctx context.Context, cases []testgen.Case) []error {
+	var errs []error
 
 	// TODO(bkeyes): output field selection should also be randomized
-	textLines := runPipeline(t.Context(), cases, &message.TextFormatter{Fields: message.AllFields})
-	jsonLines := runPipeline(t.Context(), cases, &message.JSONFormatter{Fields: message.AllFields})
+	textLines := runPipeline(ctx, cases, &message.TextFormatter{Fields: message.AllFields})
+	jsonLines := runPipeline(ctx, cases, &message.JSONFormatter{Fields: message.AllFields})
 
 	textObs := make([]testgen.Observation, len(textLines))
 	for i, line := range textLines {
 		obs, err := testgen.ObservationFromText(line)
 		if err != nil {
-			t.Errorf("invalid text line %d: %v", i+1, err)
+			errs = append(errs, fmt.Errorf("invalid text line %d: %w", i+1, err))
 		}
 		textObs[i] = obs
 	}
@@ -60,9 +69,15 @@ func checkCases(t *testing.T, cases []testgen.Case) {
 	for i, line := range jsonLines {
 		obs, err := testgen.ObservationFromJSON(line)
 		if err != nil {
-			t.Errorf("invalid JSON line %d: %v", i+1, err)
+			errs = append(errs, fmt.Errorf("invalid JSON line %d: %w", i+1, err))
 		}
 		jsonObs[i] = obs
+	}
+
+	// If any of the messages was invalid, exit early because the comparisons
+	// will also fail due to the incomplete observations
+	if len(errs) > 0 {
+		return errs
 	}
 
 	wantObs := make([]testgen.Observation, len(cases))
@@ -70,21 +85,16 @@ func checkCases(t *testing.T, cases []testgen.Case) {
 		wantObs[i] = c.Want
 	}
 
-	// If any of the messages was invalid, exit early because the comparisons
-	// will also fail due to the incomplete observations
-	if t.Failed() {
-		return
-	}
-
 	if diff := cmp.Diff(wantObs, textObs, cmpOpts...); diff != "" {
-		t.Errorf("incorrect text observations (-want, +got):\n%s", diff)
+		errs = append(errs, fmt.Errorf("incorrect text observations (-want, +got):\n%s", diff))
 	}
 	if diff := cmp.Diff(wantObs, jsonObs, cmpOpts...); diff != "" {
-		t.Errorf("incorrect JSON observations (-want, +got):\n%s", diff)
+		errs = append(errs, fmt.Errorf("incorrect JSON observations (-want, +got):\n%s", diff))
 	}
 	if diff := cmp.Diff(textObs, jsonObs, cmpOpts...); diff != "" {
-		t.Errorf("text and JSON observations differ (-text, +json):\n%s", diff)
+		errs = append(errs, fmt.Errorf("text and JSON observations differ (-text, +json):\n%s", diff))
 	}
+	return errs
 }
 
 func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter) []string {
