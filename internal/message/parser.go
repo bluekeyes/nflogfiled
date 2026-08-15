@@ -1,7 +1,9 @@
 package message
 
 import (
+	"bytes"
 	"fmt"
+	"net"
 	"net/netip"
 	"time"
 
@@ -78,7 +80,7 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 		msg.Fields.Set(FieldVLANProtocol | FieldVLANIdentifier)
 	}
 
-	if attr.HwType != nil && *attr.HwType == uint16(layers.LinkTypeEthernet) {
+	if attr.HwType != nil && attr.HwHeader != nil && *attr.HwType == uint16(layers.LinkTypeEthernet) {
 		if err := p.ethBuf.DecodeFromBytes(*attr.HwHeader, gopacket.NilDecodeFeedback); err != nil {
 			return Message{}, fmt.Errorf("invalid packet: %w", err)
 		}
@@ -105,6 +107,10 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 		}
 		for _, layerType := range p.decoded {
 			switch layerType {
+			case layers.LayerTypeEthernet:
+				msg.Packet.SrcMAC = net.HardwareAddr(bytes.Clone([]byte(p.ethBuf.SrcMAC)))
+				msg.Packet.DstMAC = net.HardwareAddr(bytes.Clone([]byte(p.ethBuf.DstMAC)))
+
 			case layers.LayerTypeIPv4:
 				msg.Packet.SrcIP, _ = netip.AddrFromSlice(p.ip4Buf.SrcIP)
 				msg.Packet.DstIP, _ = netip.AddrFromSlice(p.ip4Buf.DstIP)

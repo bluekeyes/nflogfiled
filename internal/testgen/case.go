@@ -1,6 +1,7 @@
 package testgen
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"strings"
@@ -180,14 +181,15 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 	kind := Pick(v, "ethernet", "ipv4", "ipv6")
 
 	var ipVersion int
+	var hwProtocol uint16
 	switch kind {
 	case "ipv4":
 		ipVersion = 4
-		hwProtocol := uint16(layers.EthernetTypeIPv4)
+		hwProtocol = uint16(layers.EthernetTypeIPv4)
 		attr.HwProtocol = &hwProtocol
 	case "ipv6":
 		ipVersion = 6
-		hwProtocol := uint16(layers.EthernetTypeIPv6)
+		hwProtocol = uint16(layers.EthernetTypeIPv6)
 		attr.HwProtocol = &hwProtocol
 	default:
 		ipVersion = Pick(v, 4, 6)
@@ -198,6 +200,21 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 		protocol = Pick(v, layers.IPProtocolTCP, layers.IPProtocolUDP, layers.IPProtocolICMPv4)
 	} else {
 		protocol = Pick(v, layers.IPProtocolTCP, layers.IPProtocolUDP, layers.IPProtocolICMPv6)
+	}
+
+	srcMAC := net.HardwareAddr(v.Bytes(6))
+	dstMAC := net.HardwareAddr(v.Bytes(6))
+	want.SrcMAC, want.DstMAC = &srcMAC, &dstMAC
+
+	switch kind {
+	case "ipv4", "ipv6":
+		hdr := make([]byte, 0, 14)
+		hdr = append(hdr, []byte(dstMAC)...)
+		hdr = append(hdr, []byte(srcMAC)...)
+		hdr = binary.BigEndian.AppendUint16(hdr, hwProtocol)
+
+		attr.HwType = new(uint16(layers.LinkTypeEthernet))
+		attr.HwHeader = &hdr
 	}
 
 	ttl := v.Uint8()
@@ -277,11 +294,6 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 		if ipVersion == 6 {
 			ethType = layers.EthernetTypeIPv6
 		}
-
-		srcMAC := net.HardwareAddr(v.Bytes(6))
-		dstMAC := net.HardwareAddr(v.Bytes(6))
-		want.SrcMAC, want.DstMAC = &srcMAC, &dstMAC
-
 		ls = append(ls, &layers.Ethernet{
 			SrcMAC:       srcMAC,
 			DstMAC:       dstMAC,
