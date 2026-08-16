@@ -70,12 +70,10 @@ func (v *Values) IntN(n int) int {
 
 func (v *Values) Bytes(n int) []byte {
 	out := make([]byte, n)
-	for i := 0; n > 0; n -= 8 {
+	for i := 0; i < n; i += 8 {
 		val := v.src.Uint64()
-		for b := 8; b > 0; b-- {
-			if n >= b {
-				out[i+b-1] = byte(val >> uint64(64-8*b))
-			}
+		for b := 8; b > 0 && (n-i) >= b; b-- {
+			out[i+b-1] = byte(val >> uint64(64-8*b))
 		}
 	}
 	return out
