@@ -49,6 +49,28 @@ func TestRandomMessagePipeline(t *testing.T) {
 	}
 }
 
+func FuzzMessagePipeline(f *testing.F) {
+	f.Add(make([]byte, 512))
+
+	f.Fuzz(func(t *testing.T, b []byte) {
+		v := testgen.NewValues(testgen.ByteSource(b))
+		cases := testgen.GenerateBatch(v, 1+v.IntN(4))
+
+		if errs := checkCases(t.Context(), cases); len(errs) > 0 {
+			var casesStr strings.Builder
+			for i, c := range cases {
+				fmt.Fprintf(&casesStr, "%d: %s\n", i, c)
+			}
+			t.Logf("cases=%d cases[]=\n%s", len(cases), casesStr.String())
+
+			for _, err := range errs {
+				t.Log(err)
+			}
+			t.Fail()
+		}
+	})
+}
+
 func checkCases(ctx context.Context, cases []testgen.Case) []error {
 	var errs []error
 
