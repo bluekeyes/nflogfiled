@@ -110,6 +110,7 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 			case layers.LayerTypeEthernet:
 				msg.Packet.SrcMAC = net.HardwareAddr(bytes.Clone([]byte(p.ethBuf.SrcMAC)))
 				msg.Packet.DstMAC = net.HardwareAddr(bytes.Clone([]byte(p.ethBuf.DstMAC)))
+				msg.Fields.Set(FieldPacketSrcMAC | FieldPacketDstMAC)
 
 			case layers.LayerTypeIPv4:
 				msg.Packet.SrcIP, _ = netip.AddrFromSlice(p.ip4Buf.SrcIP)
