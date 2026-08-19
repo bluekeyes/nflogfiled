@@ -98,7 +98,6 @@ func (v *Values) Time() time.Time {
 	return t
 }
 
-// TODO(bkeyes): add this to Values once Go 1.27 is out and allows generic methods
-func Pick[T any](v *Values, vals ...T) T {
+func (v *Values) Pick[T any](vals ...T) T {
 	return vals[v.IntN(len(vals))]
 }

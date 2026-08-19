@@ -1,6 +1,6 @@
 module github.com/bluekeyes/nflogfiled
 
-go 1.26.5
+go 1.27.0
 
 require (
 	github.com/florianl/go-nflog/v2 v2.3.0

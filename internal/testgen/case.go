@@ -155,7 +155,7 @@ func Generate(v *Values) Case {
 		attr.GID, want.GID = &gid, &gid
 	}
 
-	prefix := Pick(v, prefixOptions...)
+	prefix := v.Pick(prefixOptions...)
 	attr.Prefix, want.Prefix = &prefix, &prefix
 
 	if v.Bool() {
@@ -178,7 +178,7 @@ func Generate(v *Values) Case {
 }
 
 func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
-	kind := Pick(v, "ethernet", "ipv4", "ipv6")
+	kind := v.Pick("ethernet", "ipv4", "ipv6")
 
 	var ipVersion int
 	var hwProtocol uint16
@@ -192,14 +192,14 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 		hwProtocol = uint16(layers.EthernetTypeIPv6)
 		attr.HwProtocol = &hwProtocol
 	default:
-		ipVersion = Pick(v, 4, 6)
+		ipVersion = v.Pick(4, 6)
 	}
 
 	var protocol layers.IPProtocol
 	if ipVersion == 4 {
-		protocol = Pick(v, layers.IPProtocolTCP, layers.IPProtocolUDP, layers.IPProtocolICMPv4)
+		protocol = v.Pick(layers.IPProtocolTCP, layers.IPProtocolUDP, layers.IPProtocolICMPv4)
 	} else {
-		protocol = Pick(v, layers.IPProtocolTCP, layers.IPProtocolUDP, layers.IPProtocolICMPv6)
+		protocol = v.Pick(layers.IPProtocolTCP, layers.IPProtocolUDP, layers.IPProtocolICMPv6)
 	}
 
 	srcMAC := net.HardwareAddr(v.Bytes(6))

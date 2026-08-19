@@ -57,8 +57,8 @@ func ObservationFromText(line string) (Observation, error) {
 				return o, fmt.Errorf("field %s: %w", name, err)
 			}
 			s = strings.TrimPrefix(rest[len(quoted):], " ")
-		} else if i := strings.IndexByte(rest, ' '); i >= 0 {
-			value, s = rest[:i], rest[i+1:]
+		} else if before, after, ok := strings.Cut(rest, " "); ok {
+			value, s = before, after
 		} else {
 			value, s = rest, ""
 		}
