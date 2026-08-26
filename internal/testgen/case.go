@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -109,6 +110,22 @@ var prefixOptions = []string{
 	`\`,
 	"☃",
 	"this_is_a_very_long_topic_with_sixty_three_characters__________",
+}
+
+// note: flags are defined in print order
+var tcpFlagOptions = []struct {
+	Flag string
+	Set  func(*layers.TCP)
+}{
+	{"FIN", func(tcp *layers.TCP) { tcp.FIN = true }},
+	{"SYN", func(tcp *layers.TCP) { tcp.SYN = true }},
+	{"RST", func(tcp *layers.TCP) { tcp.RST = true }},
+	{"PSH", func(tcp *layers.TCP) { tcp.PSH = true }},
+	{"ACK", func(tcp *layers.TCP) { tcp.ACK = true }},
+	{"URG", func(tcp *layers.TCP) { tcp.URG = true }},
+	{"ECE", func(tcp *layers.TCP) { tcp.ECE = true }},
+	{"CWR", func(tcp *layers.TCP) { tcp.CWR = true }},
+	{"NS", func(tcp *layers.TCP) { tcp.NS = true }},
 }
 
 func GenerateBatch(v *Values, n int) []Case {
@@ -257,10 +274,26 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 		srcPort, dstPort := v.Uint16(), v.Uint16()
 		want.SrcPort, want.DstPort = &srcPort, &dstPort
 
+		seq, ack := v.Uint32(), v.Uint32()
+		want.TCPSeq, want.TCPAck = &seq, &ack
+
 		tcp := &layers.TCP{
 			SrcPort: layers.TCPPort(srcPort),
 			DstPort: layers.TCPPort(dstPort),
+			Seq:     seq,
+			Ack:     ack,
 		}
+
+		flagIndices := v.PickIndexN(v.IntN(3), len(tcpFlagOptions))
+		slices.Sort(flagIndices) // must process flags in format print order
+
+		flagStrs := make([]string, len(flagIndices))
+		for i, fi := range flagIndices {
+			tcpFlagOptions[fi].Set(tcp)
+			flagStrs[i] = tcpFlagOptions[fi].Flag
+		}
+		want.TCPFlags = new(strings.Join(flagStrs, "|"))
+
 		tcp.SetNetworkLayerForChecksum(ipLayer)
 		protoLayer = tcp
 

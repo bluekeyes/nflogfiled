@@ -101,3 +101,21 @@ func (v *Values) Time() time.Time {
 func (v *Values) Pick[T any](vals ...T) T {
 	return vals[v.IntN(len(vals))]
 }
+
+// PickIndexN returns n indices from a slice with length, selected without
+// replacement.
+func (v *Values) PickIndexN(n, length int) []int {
+	n = min(n, length)
+
+	out := make([]int, length)
+	for i := range length {
+		out[i] = i
+	}
+
+	// Variant of Fischer-Yates shuffle
+	for i := 0; i < n; i++ {
+		j := i + v.IntN(length-i)
+		out[i], out[j] = out[j], out[i]
+	}
+	return out[:n]
+}

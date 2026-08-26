@@ -33,6 +33,9 @@ type Observation struct {
 	DstPort   *uint16
 	DstMAC    *net.HardwareAddr
 	TTL       *uint8
+	TCPAck    *uint32
+	TCPSeq    *uint32
+	TCPFlags  *string
 }
 
 // ObservationFromText parses an Observation from a line of text-formatted log output.
@@ -212,6 +215,23 @@ func setField(o *Observation, name, value string) error {
 			return fmt.Errorf("field packet_ttl: %w", err)
 		}
 		o.TTL = new(uint8(v))
+
+	case "tcp_seq":
+		v, err := strconv.ParseUint(value, 10, 32)
+		if err != nil {
+			return fmt.Errorf("field tcp_seq: %w", err)
+		}
+		o.TCPSeq = new(uint32(v))
+
+	case "tcp_ack":
+		v, err := strconv.ParseUint(value, 10, 32)
+		if err != nil {
+			return fmt.Errorf("field tcp_ack: %w", err)
+		}
+		o.TCPAck = new(uint32(v))
+
+	case "tcp_flags":
+		o.TCPFlags = &value
 
 	default:
 		return fmt.Errorf("unknown field %q", name)

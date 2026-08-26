@@ -131,13 +131,10 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 				msg.Packet.DstPort = uint16(p.tcpBuf.DstPort)
 				msg.Fields.Set(FieldPacketSrcPort | FieldPacketDstPort)
 
-				msg.Packet.Seq = p.tcpBuf.Seq
-				msg.Packet.Ack = p.tcpBuf.Ack
-				msg.Packet.FIN = p.tcpBuf.FIN
-				msg.Packet.SYN = p.tcpBuf.SYN
-				msg.Packet.RST = p.tcpBuf.RST
-				msg.Packet.ACK = p.tcpBuf.ACK
-				msg.Fields.Set(FieldPacketSeq | FieldPacketAck | FieldPacketFINFlag | FieldPacketSYNFlag | FieldPacketRSTFlag | FieldPacketACKFlag)
+				msg.Packet.TCPSeq = p.tcpBuf.Seq
+				msg.Packet.TCPAck = p.tcpBuf.Ack
+				msg.Packet.TCPFlags = TCPFlagFromLayer(&p.tcpBuf)
+				msg.Fields.Set(FieldPacketTCPSeq | FieldPacketTCPAck | FieldPacketTCPFlags)
 
 			case layers.LayerTypeUDP:
 				msg.Packet.SrcPort = uint16(p.udpBuf.SrcPort)
