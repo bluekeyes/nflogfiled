@@ -277,11 +277,15 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 		seq, ack := v.Uint32(), v.Uint32()
 		want.TCPSeq, want.TCPAck = &seq, &ack
 
+		window := v.Uint16()
+		want.TCPWindow = &window
+
 		tcp := &layers.TCP{
 			SrcPort: layers.TCPPort(srcPort),
 			DstPort: layers.TCPPort(dstPort),
 			Seq:     seq,
 			Ack:     ack,
+			Window:  window,
 		}
 
 		flagIndices := v.PickIndexN(v.IntN(3), len(tcpFlagOptions))
@@ -342,4 +346,13 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 	}
 	payload := buf.Bytes()
 	attr.Payload = &payload
+
+	// IP header length is computed as part of serialization when FixLengths is
+	// true, so read it out of the layer so we can store the correct value.
+	switch ip := ipLayer.(type) {
+	case *layers.IPv4:
+		want.Length = new(ip.Length)
+	case *layers.IPv6:
+		want.Length = new(ip.Length)
+	}
 }

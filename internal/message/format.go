@@ -72,6 +72,9 @@ func formatMessage(w writer, msg Message, fields FieldSet) {
 	if output(FieldPacketTTL) {
 		w.UintField("packet_ttl", uint64(msg.Packet.TTL))
 	}
+	if output(FieldPacketLength) {
+		w.UintField("length", uint64(msg.Packet.Length))
+	}
 	if output(FieldPacketTCPSeq) {
 		w.UintField("tcp_seq", uint64(msg.Packet.TCPSeq))
 	}
@@ -80,6 +83,9 @@ func formatMessage(w writer, msg Message, fields FieldSet) {
 	}
 	if output(FieldPacketTCPFlags) {
 		w.StringField("tcp_flags", msg.Packet.TCPFlags.String())
+	}
+	if output(FieldPacketTCPWindow) {
+		w.UintField("tcp_window", uint64(msg.Packet.TCPWindow))
 	}
 
 	w.Close()

@@ -35,9 +35,11 @@ const (
 	FieldPacketDstMAC
 	FieldPacketTTL
 	FieldPacketProtocol
+	FieldPacketLength
 	FieldPacketTCPSeq
 	FieldPacketTCPAck
 	FieldPacketTCPFlags
+	FieldPacketTCPWindow
 
 	// AllFields is the FieldSet containing all fields.
 	AllFields FieldSet = math.MaxUint64
@@ -73,9 +75,11 @@ var FieldsByName = map[string]FieldSet{
 	"packet_dst_mac":      FieldPacketDstMAC,
 	"packet_ttl":          FieldPacketTTL,
 	"packet_protocol":     FieldPacketProtocol,
+	"packet_length":       FieldPacketLength,
 	"packet_tcp_seq":      FieldPacketTCPSeq,
 	"packet_tcp_ack":      FieldPacketTCPAck,
 	"packet_tcp_flags":    FieldPacketTCPFlags,
+	"packet_tcp_window":   FieldPacketTCPWindow,
 }
 
 type Message struct {
@@ -100,19 +104,6 @@ type Message struct {
 	VLANIdentifier uint16
 
 	Packet Packet
-
-	// TODO(bkeyes): Add fields for:
-	//
-	// * IP packet length
-	// * TCP window
-	//
-	// Maybe for these from the netfilter output (don't seem that useful right now):
-	//
-	// * type of service / precedence (sounds legacy)
-	// * ipv4 ID field
-	// * ipv4 "don't fragment" flag
-	// * TCP urgent pointer
-	// * TCP options (as hex or decoded)
 }
 
 type Packet struct {
@@ -126,10 +117,12 @@ type Packet struct {
 
 	TTL      uint8
 	Protocol layers.IPProtocol
+	Length   uint16
 
-	TCPSeq   uint32
-	TCPAck   uint32
-	TCPFlags TCPFlag
+	TCPSeq    uint32
+	TCPAck    uint32
+	TCPFlags  TCPFlag
+	TCPWindow uint16
 }
 
 type TCPFlag uint16

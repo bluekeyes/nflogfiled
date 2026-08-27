@@ -117,14 +117,16 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 				msg.Packet.DstIP, _ = netip.AddrFromSlice(p.ip4Buf.DstIP)
 				msg.Packet.TTL = p.ip4Buf.TTL
 				msg.Packet.Protocol = p.ip4Buf.Protocol
-				msg.Fields.Set(FieldPacketSrcIP | FieldPacketDstIP | FieldPacketTTL | FieldPacketProtocol)
+				msg.Packet.Length = p.ip4Buf.Length
+				msg.Fields.Set(FieldPacketSrcIP | FieldPacketDstIP | FieldPacketTTL | FieldPacketProtocol | FieldPacketLength)
 
 			case layers.LayerTypeIPv6:
 				msg.Packet.SrcIP, _ = netip.AddrFromSlice(p.ip6Buf.SrcIP)
 				msg.Packet.DstIP, _ = netip.AddrFromSlice(p.ip6Buf.DstIP)
 				msg.Packet.TTL = p.ip6Buf.HopLimit
 				msg.Packet.Protocol = p.ip6Buf.NextHeader
-				msg.Fields.Set(FieldPacketSrcIP | FieldPacketDstIP | FieldPacketTTL | FieldPacketProtocol)
+				msg.Packet.Length = p.ip6Buf.Length
+				msg.Fields.Set(FieldPacketSrcIP | FieldPacketDstIP | FieldPacketTTL | FieldPacketProtocol | FieldPacketLength)
 
 			case layers.LayerTypeTCP:
 				msg.Packet.SrcPort = uint16(p.tcpBuf.SrcPort)
@@ -134,7 +136,8 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 				msg.Packet.TCPSeq = p.tcpBuf.Seq
 				msg.Packet.TCPAck = p.tcpBuf.Ack
 				msg.Packet.TCPFlags = TCPFlagFromLayer(&p.tcpBuf)
-				msg.Fields.Set(FieldPacketTCPSeq | FieldPacketTCPAck | FieldPacketTCPFlags)
+				msg.Packet.TCPWindow = p.tcpBuf.Window
+				msg.Fields.Set(FieldPacketTCPSeq | FieldPacketTCPAck | FieldPacketTCPFlags | FieldPacketTCPWindow)
 
 			case layers.LayerTypeUDP:
 				msg.Packet.SrcPort = uint16(p.udpBuf.SrcPort)

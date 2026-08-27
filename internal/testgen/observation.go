@@ -33,9 +33,11 @@ type Observation struct {
 	DstPort   *uint16
 	DstMAC    *net.HardwareAddr
 	TTL       *uint8
+	Length    *uint16
 	TCPAck    *uint32
 	TCPSeq    *uint32
 	TCPFlags  *string
+	TCPWindow *uint16
 }
 
 // ObservationFromText parses an Observation from a line of text-formatted log output.
@@ -167,6 +169,13 @@ func setField(o *Observation, name, value string) error {
 		}
 		o.Protocol = &p
 
+	case "length":
+		v, err := strconv.ParseUint(value, 10, 16)
+		if err != nil {
+			return fmt.Errorf("field length: %w", err)
+		}
+		o.Length = new(uint16(v))
+
 	case "src_ip":
 		addr, err := netip.ParseAddr(value)
 		if err != nil {
@@ -232,6 +241,13 @@ func setField(o *Observation, name, value string) error {
 
 	case "tcp_flags":
 		o.TCPFlags = &value
+
+	case "tcp_window":
+		v, err := strconv.ParseUint(value, 10, 16)
+		if err != nil {
+			return fmt.Errorf("field tcp_window: %w", err)
+		}
+		o.TCPWindow = new(uint16(v))
 
 	default:
 		return fmt.Errorf("unknown field %q", name)
