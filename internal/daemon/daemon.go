@@ -3,6 +3,10 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
 )
@@ -43,8 +47,23 @@ func (d *Daemon) Start(ctx context.Context) error {
 		}
 	}
 
-	<-ctx.Done()
-	return nil
+	reload := make(chan os.Signal, 1)
+	signal.Notify(reload, syscall.SIGHUP)
+
+	for {
+		select {
+		case <-reload:
+			for _, p := range pipelines {
+				if err := p.ReloadFile(); err != nil {
+					slog.ErrorContext(ctx, "error reloading file", "error", err)
+				}
+			}
+
+		case <-ctx.Done():
+			return nil
+		}
+	}
+
 }
 
 func validateMappings(mappings []groups.Mapping) error {
