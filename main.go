@@ -5,9 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bluekeyes/nflogfiled/internal/cmd"
 	"github.com/bluekeyes/nflogfiled/internal/daemon"
@@ -21,6 +23,12 @@ var opts struct {
 	format         string
 	fileMode       string
 	fields         string
+
+	channelBufferSize    int
+	packetBufferSize     uint64
+	kernelReadBufferSize int
+	kernelFlushTimeout   time.Duration
+	kernelFlushCount     uint64
 }
 
 func die(msg string, args ...any) {
@@ -34,6 +42,12 @@ func init() {
 	flag.StringVar(&opts.format, "format", "", "")
 	flag.StringVar(&opts.fileMode, "file-mode", "", "")
 	flag.StringVar(&opts.fields, "fields", "", "")
+
+	flag.IntVar(&opts.channelBufferSize, "channel-buffer-size", 0, "")
+	flag.Uint64Var(&opts.packetBufferSize, "packet-buffer-size", 0, "")
+	flag.IntVar(&opts.kernelReadBufferSize, "kernel-read-buffer-size", 0, "")
+	flag.DurationVar(&opts.kernelFlushTimeout, "kernel-flush-timeout", 0, "")
+	flag.Uint64Var(&opts.kernelFlushCount, "kernel-flush-count", 0, "")
 }
 
 func main() {
@@ -105,6 +119,32 @@ func pipelineOptionsFromFlags() (daemon.PipelineOptions, error) {
 			return p, fmt.Errorf("invalid file mode: %q", opts.fileMode)
 		}
 		p.FileMode = fs.FileMode(fileMode).Perm()
+	}
+
+	if opts.channelBufferSize != 0 {
+		p.ChannelBufferSize = opts.channelBufferSize
+	}
+
+	if opts.packetBufferSize != 0 {
+		if opts.packetBufferSize > math.MaxUint32 {
+			return p, fmt.Errorf("packet buffer size too large: %d", opts.packetBufferSize)
+		}
+		p.PacketBufferSize = uint32(opts.packetBufferSize)
+	}
+
+	if opts.kernelReadBufferSize != 0 {
+		p.KernelReadBufferSize = opts.kernelReadBufferSize
+	}
+
+	if opts.kernelFlushTimeout != 0 {
+		p.KernelFlushTimeout = opts.kernelFlushTimeout
+	}
+
+	if opts.kernelFlushCount != 0 {
+		if opts.kernelFlushCount > math.MaxUint32 {
+			return p, fmt.Errorf("kernel flush count too large: %d", opts.kernelFlushCount)
+		}
+		p.KernelFlushCount = uint32(opts.kernelFlushCount)
 	}
 
 	return p, nil
