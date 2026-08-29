@@ -16,11 +16,13 @@ const (
 )
 
 type Daemon struct {
-	mappings []groups.Mapping
+	mappings     []groups.Mapping
+	pipelineOpts PipelineOptions
 }
 
 type Config struct {
 	Mappings []groups.Mapping
+	Pipeline PipelineOptions
 }
 
 func NewDaemon(config Config) (*Daemon, error) {
@@ -40,7 +42,7 @@ func (d *Daemon) Start(ctx context.Context) error {
 	pipelines := make([]*Pipeline, len(d.mappings))
 	for i, m := range d.mappings {
 		var err error
-		pipelines[i], err = StartPipeline(ctx, m, PipelineOptions{})
+		pipelines[i], err = StartPipeline(ctx, m, d.pipelineOpts)
 		if err != nil {
 			stopPipelines(pipelines)
 			return fmt.Errorf("starting pipeline failed: %w", err)

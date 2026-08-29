@@ -41,8 +41,8 @@ const (
 	FieldPacketTCPFlags
 	FieldPacketTCPWindow
 
-	// AllFields is the FieldSet containing all fields.
 	AllFields FieldSet = math.MaxUint64
+	NoFields  FieldSet = 0
 )
 
 func (fs FieldSet) Has(f FieldSet) bool {
