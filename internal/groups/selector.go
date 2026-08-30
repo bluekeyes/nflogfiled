@@ -52,6 +52,44 @@ func ParseSelector(selector string) ([]Group, error) {
 	return slices.Sorted(maps.Keys(groups)), nil
 }
 
+// FormatSelector takes a list of groups and produces the minimal selector that
+// selects all of them.
+func FormatSelector(groups []Group) string {
+	if len(groups) == 0 {
+		return ""
+	}
+
+	// Groups must be in incrementing order with no duplicates to produce
+	// ranges in the minimal selector. Clone to avoid modifying input.
+	groups = slices.Clone(groups)
+	slices.Sort(groups)
+	groups = slices.Compact(groups)
+
+	var s strings.Builder
+	start, end := groups[0], groups[0]
+	for _, g := range groups[1:] {
+		if g > end+1 {
+			writeSelectorRange(&s, start, end)
+			start = g
+		}
+		end = g
+	}
+	writeSelectorRange(&s, start, end)
+
+	return s.String()
+}
+
+func writeSelectorRange(s *strings.Builder, start, end Group) {
+	if s.Len() > 0 {
+		s.WriteByte(',')
+	}
+	if start == end {
+		fmt.Fprintf(s, "%d", start)
+	} else {
+		fmt.Fprintf(s, "%d-%d", start, end)
+	}
+}
+
 func trimAndParseGroup(g string) (Group, error) {
 	n, err := strconv.ParseUint(strings.TrimSpace(g), 10, 16)
 	if err != nil {

@@ -4,25 +4,21 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/fs"
 	"math"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/bluekeyes/nflogfiled/internal/cmd"
+	"github.com/bluekeyes/nflogfiled/internal/cli"
 	"github.com/bluekeyes/nflogfiled/internal/daemon"
-	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/bluekeyes/nflogfiled/internal/message"
 )
 
 var opts struct {
-	logLevel       int
-	mappingStrings cmd.StringSliceValue
-	format         string
-	fileMode       string
-	fields         string
+	logLevel int
+	mappings cli.GroupMappingValue
+	format   string
+	fileMode cli.FileModeValue
+	fields   cli.FieldSetValue
 
 	channelBufferSize    int
 	packetBufferSize     uint64
@@ -38,10 +34,10 @@ func die(msg string, args ...any) {
 
 func init() {
 	flag.IntVar(&opts.logLevel, "log-level", 0, "")
-	flag.Var(&opts.mappingStrings, "map", "")
+	flag.Var(&opts.mappings, "map", "")
 	flag.StringVar(&opts.format, "format", "", "")
-	flag.StringVar(&opts.fileMode, "file-mode", "", "")
-	flag.StringVar(&opts.fields, "fields", "", "")
+	flag.Var(&opts.fileMode, "file-mode", "")
+	flag.Var(&opts.fields, "fields", "")
 
 	flag.IntVar(&opts.channelBufferSize, "channel-buffer-size", 0, "")
 	flag.Uint64Var(&opts.packetBufferSize, "packet-buffer-size", 0, "")
@@ -56,22 +52,13 @@ func main() {
 	// TODO(bkeyes): connect to signal handling for graceful shutdown
 	ctx := context.Background()
 
-	var mappings []groups.Mapping
-	for _, v := range opts.mappingStrings.Values {
-		m, err := groups.ParseMapping(v)
-		if err != nil {
-			die("invalid mapping: %v", err)
-		}
-		mappings = append(mappings, m...)
-	}
-
 	pipelineOpts, err := pipelineOptionsFromFlags()
 	if err != nil {
 		die("invalid option: %v", err)
 	}
 
 	d, err := daemon.NewDaemon(daemon.Config{
-		Mappings: mappings,
+		Mappings: opts.mappings.Values,
 		Pipeline: pipelineOpts,
 	})
 	if err != nil {
@@ -86,17 +73,7 @@ func main() {
 func pipelineOptionsFromFlags() (daemon.PipelineOptions, error) {
 	var p daemon.PipelineOptions
 
-	var fieldSet message.FieldSet
-	if opts.fields != "" {
-		for name := range strings.SplitSeq(opts.fields, ",") {
-			name = strings.TrimSpace(name)
-			if field, ok := message.FieldsByName[name]; ok {
-				fieldSet |= field
-			} else {
-				return p, fmt.Errorf("unknown output field: %q", name)
-			}
-		}
-	}
+	fieldSet := opts.fields.Value
 
 	if opts.format != "" || fieldSet != message.NoFields {
 		if fieldSet == message.NoFields {
@@ -113,12 +90,8 @@ func pipelineOptionsFromFlags() (daemon.PipelineOptions, error) {
 		}
 	}
 
-	if opts.fileMode != "" {
-		fileMode, err := strconv.ParseUint(opts.fileMode, 8, 32)
-		if err != nil {
-			return p, fmt.Errorf("invalid file mode: %q", opts.fileMode)
-		}
-		p.FileMode = fs.FileMode(fileMode).Perm()
+	if opts.fileMode.Value != 0 {
+		p.FileMode = opts.fileMode.Value
 	}
 
 	if opts.channelBufferSize != 0 {

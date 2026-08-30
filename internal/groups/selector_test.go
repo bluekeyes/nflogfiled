@@ -80,3 +80,42 @@ func TestParseSelector(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatSelector(t *testing.T) {
+	for name, test := range map[string]struct {
+		Groups   []Group
+		Selector string
+	}{
+		"single": {
+			Groups:   []Group{3},
+			Selector: "3",
+		},
+		"mixed": {
+			Groups:   []Group{3, 1, 8, 9, 10},
+			Selector: "1,3,8-10",
+		},
+		"singleRange": {
+			Groups:   []Group{4, 5, 6, 7, 8, 9, 10, 11, 12},
+			Selector: "4-12",
+		},
+		"dualRange": {
+			Groups:   []Group{1, 2, 5, 6, 7, 8, 9, 10},
+			Selector: "1-2,5-10",
+		},
+		"duplicatesOutOfOrder": {
+			Groups:   []Group{3, 5, 7, 3, 1, 5},
+			Selector: "1,3,5,7",
+		},
+		"empty": {
+			Groups:   nil,
+			Selector: "",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := FormatSelector(test.Groups)
+			if want := test.Selector; got != want {
+				t.Errorf("incorrect selector, want %q, got %q", want, got)
+			}
+		})
+	}
+}
