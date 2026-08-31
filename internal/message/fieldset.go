@@ -72,7 +72,11 @@ func FormatFieldSet(fs FieldSet, sep string) string {
 	var s []string
 	for f := FieldSet(1); f <= fs; f <<= 1 {
 		if fs.Has(f) {
-			s = append(s, namesByField[f])
+			if name, ok := namesByField[f]; ok {
+				s = append(s, name)
+			} else {
+				s = append(s, fmt.Sprintf("unknown(%d)", uint64(f)))
+			}
 		}
 	}
 	return strings.Join(s, sep)
@@ -118,7 +122,7 @@ func init() {
 		"packet_tcp_window":   FieldPacketTCPWindow,
 	}
 
-	namesByField := make(map[FieldSet]string, len(fieldsByName))
+	namesByField = make(map[FieldSet]string, len(fieldsByName))
 	for n, f := range fieldsByName {
 		namesByField[f] = n
 	}

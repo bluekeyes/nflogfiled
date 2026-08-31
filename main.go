@@ -159,6 +159,11 @@ func helpText() string {
 	defaultFlushTimeout := daemon.DefaultKernelFlushTimeout.String()
 	defaultFlushCount := strconv.Itoa(daemon.DefaultKernelFlushCount)
 
+	// Wrap fields so that they meet the ~82 character limit when indented two
+	// spaces past the field description column.
+	defaultFields := message.FormatFieldSet(message.AllFields, ", ")
+	defaultFields = cli.IndentText(cli.WrapText(defaultFields, 54), 27, false)
+
 	help := `
 Usage: nflogfiled [options]
 
@@ -185,7 +190,9 @@ Options:
   -fields=fields         Sets the nflog fields included in the output. Fields are
                          only printed when they are also present in the message.
                          See the "Fields" section for a list of all fields. The
-                         default field list is: TODO
+                         default field list is:
+
+` + defaultFields + `
 
   -v/-version            Print the version and exit.
 
