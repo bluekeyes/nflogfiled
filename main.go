@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"time"
@@ -75,8 +76,9 @@ func main() {
 	}
 
 	// TODO(bkeyes): configure logging
-	// TODO(bkeyes): connect to signal handling for graceful shutdown
-	ctx := context.Background()
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
 	pipelineOpts, err := pipelineOptionsFromFlags(opts)
 	if err != nil {
