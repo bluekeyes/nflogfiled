@@ -27,6 +27,23 @@ const (
 	DefaultKernelFlushCount     = 10
 )
 
+const (
+	DefaultFieldSet = message.FieldReceivedAt |
+		message.FieldGroup |
+		message.FieldHook |
+		message.FieldPrefix |
+		message.FieldInDevice |
+		message.FieldOutDevice |
+		message.FieldVLANIdentifier |
+		message.FieldPacketSrcIP |
+		message.FieldPacketSrcPort |
+		message.FieldPacketDstIP |
+		message.FieldPacketDstPort |
+		message.FieldPacketProtocol |
+		message.FieldPacketLength |
+		message.FieldPacketTCPFlags
+)
+
 // A pipeline contains a set of nflog connections, the channel to which they
 // send messages, and the output writer that reads from the channel.
 type Pipeline struct {
@@ -58,7 +75,7 @@ type PipelineOptions struct {
 
 func setDefaultOptionsIfMissing(opts *PipelineOptions) {
 	if opts.Format == nil {
-		opts.Format = &message.TextFormatter{Fields: message.AllFields}
+		opts.Format = &message.TextFormatter{Fields: DefaultFieldSet}
 	}
 	if opts.FileMode == 0 {
 		opts.FileMode = DefaultFileMode

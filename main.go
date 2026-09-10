@@ -173,7 +173,7 @@ func helpText() string {
 
 	// Wrap fields so that they meet the ~82 character limit when indented two
 	// spaces past the field description column.
-	defaultFields := message.FormatFieldSet(message.AllFields, ", ")
+	defaultFields := message.FormatFieldSet(daemon.DefaultFieldSet, ", ")
 	defaultFields = cli.IndentText(cli.WrapText(defaultFields, 54), 27, false)
 
 	help := `
