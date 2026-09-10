@@ -244,7 +244,40 @@ Tuning Options:
 
 Fields:
 
-  TODO
+  General Fields
+
+    group                nflog group that logged the message
+    received_at          time when the daemon received the message
+    hook                 netfilter hook that logged the message
+    mark                 netfilter mark value on the message
+    prefix               prefix string set by the nflog rule
+    uid                  user ID of the associated local socket
+    gid                  group ID of the associated local socket
+    in_device            input interface index
+    physical_in_device   physical input interface index
+    out_device           output interface index
+    physical_out_device  physical output interface index
+    vlan_protocol        VLAN tag protocol (EtherType)
+    vlan_identifier      numeric VLAN ID
+
+  Packet Fields
+
+    packet_src_ip        source IP address
+    packet_src_port      source port (TCP or UDP)
+    packet_src_mac       source MAC address
+    packet_dst_ip        destination IP address
+    packet_dst_port      destination port (TCP or UDP)
+    packet_dst_mac       destination MAC address
+    packet_ttl           IPv4 TTL or IPv6 hop limit
+    packet_protocol      IP protocol name or number
+    packet_length        total IP packet length in bytes
+
+  TCP Fields
+
+    packet_tcp_seq       TCP sequence number
+    packet_tcp_ack       TCP acknowledgement number
+    packet_tcp_flags     set TCP flag names
+    packet_tcp_window    TCP window size
 
 `
 	return strings.TrimSpace(help)
