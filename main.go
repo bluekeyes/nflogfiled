@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"os"
 	"os/signal"
@@ -22,7 +23,7 @@ var (
 )
 
 type Options struct {
-	LogLevel int
+	LogLevel cli.LogLevelValue
 	Mapping  cli.GroupMappingValue
 	Format   string
 	FileMode cli.FileModeValue
@@ -47,7 +48,7 @@ func main() {
 	fs.SetOutput(io.Discard)
 	fs.Usage = func() {}
 
-	fs.IntVar(&opts.LogLevel, "log-level", 0, "")
+	fs.Var(&opts.LogLevel, "log-level", "")
 	fs.Var(&opts.Mapping, "map", "")
 	fs.StringVar(&opts.Format, "format", "", "")
 	fs.Var(&opts.FileMode, "file-mode", "")
@@ -75,7 +76,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	// TODO(bkeyes): configure logging
+	configureLogging(opts)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -96,6 +97,17 @@ func main() {
 	if err := d.Start(ctx); err != nil {
 		die(fmt.Errorf("daemon failed to start: %w", err))
 	}
+}
+
+func configureLogging(opts Options) {
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: opts.LogLevel.Value,
+	})
+
+	logger := slog.New(handler)
+
+	slog.SetDefault(logger)
+	slog.SetLogLoggerLevel(slog.LevelInfo)
 }
 
 func pipelineOptionsFromFlags(opts Options) (daemon.PipelineOptions, error) {
@@ -178,7 +190,8 @@ Options:
                          multiple mappings. The 'groups' part of a mapping is a
                          comma-separated list of group numbers and ranges. A group
                          range has the form "start-end" inclusive. The groups are
-                         separated from the file path by a colon.
+                         separated from the file path by a colon. Use '-' as the
+                         path to write to standard out.
 
   -format=format         Sets the output format, one of 'text' or 'json'. The
                          default output format is 'text'.
@@ -193,6 +206,9 @@ Options:
                          default field list is:
 
 ` + defaultFields + `
+
+  -log-level=level       Sets the daemon's log level. One of 'debug', 'info',
+                         'warn', or 'error'. Logs write to standard error.
 
   -v/-version            Print the version and exit.
 

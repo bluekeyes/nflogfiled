@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"strconv"
 	"strings"
 
@@ -87,4 +88,21 @@ func (v *FileModeValue) Set(s string) error {
 	}
 	v.Value = fs.FileMode(mode).Perm()
 	return nil
+}
+
+// LogLevelValue is a [flag.Value] that parses the string representation of an
+// [slog.Level]. Each call to Set replaces the stored value.
+type LogLevelValue struct {
+	Value slog.Level
+}
+
+func (v *LogLevelValue) String() string {
+	if v == nil {
+		return ""
+	}
+	return v.Value.String()
+}
+
+func (v *LogLevelValue) Set(s string) error {
+	return v.Value.UnmarshalText([]byte(s))
 }
