@@ -50,7 +50,7 @@ type Pipeline struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	conns []*nflog.Nflog
+	conns []Connection
 
 	writeCancel context.CancelFunc
 	writeDone   chan struct{}
@@ -70,7 +70,8 @@ type PipelineOptions struct {
 	KernelFlushTimeout   time.Duration
 	KernelFlushCount     uint32
 
-	NowFunc func() time.Time
+	NowFunc  func() time.Time
+	OpenConn ConnectionFactory
 }
 
 func setDefaultOptionsIfMissing(opts *PipelineOptions) {
@@ -100,6 +101,9 @@ func setDefaultOptionsIfMissing(opts *PipelineOptions) {
 	if opts.NowFunc == nil {
 		opts.NowFunc = time.Now
 	}
+	if opts.OpenConn == nil {
+		opts.OpenConn = OpenNflogConnection
+	}
 }
 
 func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOptions) (*Pipeline, error) {
@@ -111,7 +115,7 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 	p := &Pipeline{
 		ctx:       ctx,
 		cancel:    cancel,
-		conns:     make([]*nflog.Nflog, len(mapping.Groups)),
+		conns:     make([]Connection, len(mapping.Groups)),
 		writeDone: make(chan struct{}),
 		w:         logfile.NewWriter(msgs, opts.Format),
 		fileName:  mapping.File,
@@ -120,7 +124,7 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 
 	for i, g := range mapping.Groups {
 		var err error
-		p.conns[i], err = openNflogConn(ctx, g, msgs, opts)
+		p.conns[i], err = opts.OpenConn(ctx, g, msgs, opts)
 		if err != nil {
 			p.cleanup()
 			return nil, err
@@ -185,7 +189,16 @@ func (p *Pipeline) cleanup() {
 	}
 }
 
-func openNflogConn(ctx context.Context, group groups.Group, msgs chan<- message.Message, opts PipelineOptions) (*nflog.Nflog, error) {
+// Connection represents a connection to a message source.
+type Connection interface {
+	io.Closer
+}
+
+// ConnectionFactory opens a new connection for the specified group, sending
+// messages to the message channel.
+type ConnectionFactory func(context.Context, groups.Group, chan<- message.Message, PipelineOptions) (Connection, error)
+
+func OpenNflogConnection(ctx context.Context, group groups.Group, msgs chan<- message.Message, opts PipelineOptions) (Connection, error) {
 	config := nflog.Config{
 		Group:    uint16(group),
 		Copymode: nflog.CopyPacket,
