@@ -1,6 +1,7 @@
 package daemon_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/rand/v2"
@@ -50,7 +51,10 @@ func TestRandomMessagePipeline(t *testing.T) {
 }
 
 func FuzzMessagePipeline(f *testing.F) {
-	f.Add(make([]byte, 512))
+	const seedLen = 1024
+
+	f.Add(bytes.Repeat([]byte{0x00}, seedLen))
+	f.Add(bytes.Repeat([]byte{0xFF}, seedLen))
 
 	f.Fuzz(func(t *testing.T, b []byte) {
 		v := testgen.NewValues(testgen.ByteSource(b))
