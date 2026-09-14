@@ -167,17 +167,27 @@ func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter)
 	return w.Lines()
 }
 
+// defaultTestSeed is an arbitrary seed that makes generated tests
+// deterministic across runs. The value is a nanosecond epoch timestamp from
+// shortly before adding this definition.
+const defaultTestSeed uint64 = 0x18d5102dcb24e387
+
 func seedFromEnv(t *testing.T) uint64 {
 	t.Helper()
 
 	if s, ok := os.LookupEnv("NFLOGFILED_TEST_SEED"); ok {
+		if strings.ToLower(s) == "time" {
+			return uint64(time.Now().UnixNano())
+		}
+
 		seed, err := strconv.ParseUint(s, 10, 64)
 		if err != nil {
 			t.Fatalf("NFLOGFILED_TEST_SEED contains an invalid seed value: %v", err)
 		}
 		return seed
 	}
-	return uint64(time.Now().UnixNano())
+
+	return defaultTestSeed
 }
 
 func itersFromEnv(t *testing.T) int {
@@ -193,5 +203,5 @@ func itersFromEnv(t *testing.T) int {
 		}
 		return iters
 	}
-	return 1000
+	return 2000
 }
