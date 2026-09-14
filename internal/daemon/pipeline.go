@@ -123,8 +123,11 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 	}
 
 	for i, g := range mapping.Groups {
+		hook := NflogHook(ctx, g, msgs, opts.NowFunc)
+		errFunc := NflogErrorFunc(ctx)
+
 		var err error
-		p.conns[i], err = opts.OpenConn(ctx, g, msgs, opts)
+		p.conns[i], err = opts.OpenConn(ctx, g, hook, errFunc, opts)
 		if err != nil {
 			p.cleanup()
 			return nil, err
@@ -194,11 +197,11 @@ type Connection interface {
 	io.Closer
 }
 
-// ConnectionFactory opens a new connection for the specified group, sending
-// messages to the message channel.
-type ConnectionFactory func(context.Context, groups.Group, chan<- message.Message, PipelineOptions) (Connection, error)
+// ConnectionFactory opens a new connection for the specified group that calls
+// the appropriate hook on new messages or errors.
+type ConnectionFactory func(context.Context, groups.Group, nflog.HookFunc, nflog.ErrorFunc, PipelineOptions) (Connection, error)
 
-func OpenNflogConnection(ctx context.Context, group groups.Group, msgs chan<- message.Message, opts PipelineOptions) (Connection, error) {
+func OpenNflogConnection(ctx context.Context, group groups.Group, hook nflog.HookFunc, errFunc nflog.ErrorFunc, opts PipelineOptions) (Connection, error) {
 	config := nflog.Config{
 		Group:    uint16(group),
 		Copymode: nflog.CopyPacket,
@@ -218,7 +221,7 @@ func OpenNflogConnection(ctx context.Context, group groups.Group, msgs chan<- me
 		slog.WarnContext(ctx, "setting kernel read buffer size failed, continuing with kernel's default buffer", "error", err)
 	}
 
-	if err := nf.RegisterWithErrorFunc(ctx, NflogHook(ctx, group, msgs, opts.NowFunc), NflogErrorFunc(ctx)); err != nil {
+	if err := nf.RegisterWithErrorFunc(ctx, hook, errFunc); err != nil {
 		_ = nf.Close()
 		return nil, fmt.Errorf("registering nflog hook failed: %w", err)
 	}
