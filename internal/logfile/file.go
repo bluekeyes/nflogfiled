@@ -8,7 +8,7 @@ import (
 
 // Open opens the file at name for writing, creating it and any parent
 // directories if they doesn't exist.
-func Open(name string, mode os.FileMode) (*os.File, error) {
+func Open(name string, mode os.FileMode) (io.WriteCloser, error) {
 	dir := filepath.Dir(name)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err

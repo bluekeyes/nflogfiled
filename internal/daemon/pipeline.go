@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
@@ -58,6 +59,7 @@ type Pipeline struct {
 
 	fileName string
 	fileMode fs.FileMode
+	openFunc OpenFunc
 }
 
 type PipelineOptions struct {
@@ -70,9 +72,24 @@ type PipelineOptions struct {
 	KernelFlushTimeout   time.Duration
 	KernelFlushCount     uint32
 
-	NowFunc  func() time.Time
-	OpenConn ConnectionFactory
+	// Options to modify pipeline behavior for testing. If nil, all use
+	// appropriate default functions.
+	NowFunc     func() time.Time
+	ConnectFunc ConnectFunc
+	OpenFunc    OpenFunc
 }
+
+// Connection represents a connection to a message source.
+type Connection interface {
+	io.Closer
+}
+
+// ConnectFunc opens a new connection for the specified group that calls the
+// appropriate hook on new messages or errors.
+type ConnectFunc func(context.Context, groups.Group, nflog.HookFunc, nflog.ErrorFunc, PipelineOptions) (Connection, error)
+
+// OpenFunc returns writer for the given path with the given file mode.
+type OpenFunc func(string, os.FileMode) (io.WriteCloser, error)
 
 func setDefaultOptionsIfMissing(opts *PipelineOptions) {
 	if opts.Format == nil {
@@ -101,8 +118,11 @@ func setDefaultOptionsIfMissing(opts *PipelineOptions) {
 	if opts.NowFunc == nil {
 		opts.NowFunc = time.Now
 	}
-	if opts.OpenConn == nil {
-		opts.OpenConn = OpenNflogConnection
+	if opts.ConnectFunc == nil {
+		opts.ConnectFunc = OpenNflogConnection
+	}
+	if opts.OpenFunc == nil {
+		opts.OpenFunc = logfile.Open
 	}
 }
 
@@ -120,6 +140,7 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 		w:         logfile.NewWriter(msgs, opts.Format),
 		fileName:  mapping.File,
 		fileMode:  opts.FileMode,
+		openFunc:  opts.OpenFunc,
 	}
 
 	for i, g := range mapping.Groups {
@@ -127,7 +148,7 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 		errFunc := NflogErrorFunc(ctx)
 
 		var err error
-		p.conns[i], err = opts.OpenConn(ctx, g, hook, errFunc, opts)
+		p.conns[i], err = opts.ConnectFunc(ctx, g, hook, errFunc, opts)
 		if err != nil {
 			p.cleanup()
 			return nil, err
@@ -162,7 +183,7 @@ func (p *Pipeline) startWriter() error {
 		dst = logfile.Stdout()
 	} else {
 		var err error
-		dst, err = logfile.Open(p.fileName, p.fileMode)
+		dst, err = p.openFunc(p.fileName, p.fileMode)
 		if err != nil {
 			return fmt.Errorf("opening output file failed: %w", err)
 		}
@@ -191,15 +212,6 @@ func (p *Pipeline) cleanup() {
 		}
 	}
 }
-
-// Connection represents a connection to a message source.
-type Connection interface {
-	io.Closer
-}
-
-// ConnectionFactory opens a new connection for the specified group that calls
-// the appropriate hook on new messages or errors.
-type ConnectionFactory func(context.Context, groups.Group, nflog.HookFunc, nflog.ErrorFunc, PipelineOptions) (Connection, error)
 
 func OpenNflogConnection(ctx context.Context, group groups.Group, hook nflog.HookFunc, errFunc nflog.ErrorFunc, opts PipelineOptions) (Connection, error) {
 	config := nflog.Config{
