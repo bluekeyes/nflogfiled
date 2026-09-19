@@ -25,7 +25,7 @@ var cmpOpts = []cmp.Option{
 	cmp.Comparer(func(a, b netip.Addr) bool { return a == b }),
 }
 
-func TestRandomMessagePipeline(t *testing.T) {
+func TestRandomMessageRoundtrip(t *testing.T) {
 	seed := seedFromEnv(t)
 	iters := itersFromEnv(t)
 
@@ -35,7 +35,7 @@ func TestRandomMessagePipeline(t *testing.T) {
 		v := testgen.NewValues(rand.NewPCG(seed, uint64(i)))
 		cases := testgen.GenerateBatch(v, 1+v.IntN(8))
 
-		if errs := checkCases(t.Context(), cases); len(errs) > 0 {
+		if errs := roundtripCases(t.Context(), cases); len(errs) > 0 {
 			var casesStr strings.Builder
 			for i, c := range cases {
 				fmt.Fprintf(&casesStr, "%d: %s\n", i, c)
@@ -50,7 +50,7 @@ func TestRandomMessagePipeline(t *testing.T) {
 	}
 }
 
-func FuzzMessagePipeline(f *testing.F) {
+func FuzzMessageRoundtrip(f *testing.F) {
 	const seedLen = 1024
 
 	f.Add(bytes.Repeat([]byte{0x00}, seedLen))
@@ -60,7 +60,7 @@ func FuzzMessagePipeline(f *testing.F) {
 		v := testgen.NewValues(testgen.ByteSource(b))
 		cases := testgen.GenerateBatch(v, 1+v.IntN(4))
 
-		if errs := checkCases(t.Context(), cases); len(errs) > 0 {
+		if errs := roundtripCases(t.Context(), cases); len(errs) > 0 {
 			var casesStr strings.Builder
 			for i, c := range cases {
 				fmt.Fprintf(&casesStr, "%d: %s\n", i, c)
@@ -75,7 +75,7 @@ func FuzzMessagePipeline(f *testing.F) {
 	})
 }
 
-func checkCases(ctx context.Context, cases []testgen.Case) []error {
+func roundtripCases(ctx context.Context, cases []testgen.Case) []error {
 	var errs []error
 
 	// TODO(bkeyes): output field selection should also be randomized
