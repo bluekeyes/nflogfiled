@@ -181,7 +181,14 @@ Usage: nflogfiled [options]
 
   Run the nflogfiled daemon.
 
-  TODO
+  The daemon listens for nflog messages sent to specific groups, formats them,
+  and writes the results to one or more files. It provides more control than
+  the built-in output of a tool like nftables while being simpler than a tool
+  like ulogd.
+
+  On startup, the daemon creates any output files that do not exist, including
+  their parent directories if needed. Send the daemon process the SIGHUP signal
+  to reopen files, e.g. after log rotation.
 
 Options:
 
