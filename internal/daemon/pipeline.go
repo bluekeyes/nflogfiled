@@ -53,9 +53,8 @@ type Pipeline struct {
 
 	conns []Connection
 
-	writeCancel context.CancelFunc
-	writeDone   chan struct{}
-	w           *logfile.Writer
+	w       *logfile.Writer
+	dstChan chan io.WriteCloser
 
 	fileName string
 	fileMode fs.FileMode
@@ -133,15 +132,20 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 	msgs := make(chan message.Message, opts.ChannelBufferSize)
 
 	p := &Pipeline{
-		ctx:       ctx,
-		cancel:    cancel,
-		conns:     make([]Connection, len(mapping.Groups)),
-		writeDone: make(chan struct{}),
-		w:         logfile.NewWriter(msgs, opts.Format),
-		fileName:  mapping.File,
-		fileMode:  opts.FileMode,
-		openFunc:  opts.OpenFunc,
+		ctx:      ctx,
+		cancel:   cancel,
+		conns:    make([]Connection, len(mapping.Groups)),
+		dstChan:  make(chan io.WriteCloser),
+		fileName: mapping.File,
+		fileMode: opts.FileMode,
+		openFunc: opts.OpenFunc,
 	}
+
+	dst, err := p.openDestination()
+	if err != nil {
+		return nil, err
+	}
+	p.w = logfile.NewWriter(dst, opts.Format)
 
 	for i, g := range mapping.Groups {
 		hook := NflogHook(ctx, g, msgs, opts.NowFunc)
@@ -155,10 +159,7 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 		}
 	}
 
-	if err := p.startWriter(); err != nil {
-		p.cleanup()
-		return nil, err
-	}
+	go p.writeForever(msgs)
 
 	// Close all connections when the root context is canceled
 	go func() {
@@ -170,34 +171,44 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 }
 
 func (p *Pipeline) ReloadFile() error {
-	// Cancel the existing writer and wait for it to finish
-	p.writeCancel()
-	<-p.writeDone
-
-	return p.startWriter()
-}
-
-func (p *Pipeline) startWriter() error {
-	var dst io.WriteCloser
-	if p.fileName == StdoutFileName {
-		dst = logfile.Stdout()
-	} else {
-		var err error
-		dst, err = p.openFunc(p.fileName, p.fileMode)
-		if err != nil {
-			return fmt.Errorf("opening output file failed: %w", err)
-		}
+	dst, err := p.openDestination()
+	if err != nil {
+		return err
 	}
 
-	ctx, cancel := context.WithCancel(p.ctx)
-	p.writeCancel = cancel
-
-	go func() {
-		p.w.Write(ctx, dst)
-		p.writeDone <- struct{}{}
-	}()
-
+	select {
+	case p.dstChan <- dst:
+	case <-p.ctx.Done():
+		_ = dst.Close()
+	}
 	return nil
+}
+
+func (p *Pipeline) openDestination() (io.WriteCloser, error) {
+	if p.fileName == StdoutFileName {
+		return logfile.Stdout(), nil
+	}
+
+	dst, err := p.openFunc(p.fileName, p.fileMode)
+	if err != nil {
+		return nil, fmt.Errorf("opening output file failed: %w", err)
+	}
+	return dst, err
+}
+
+func (p *Pipeline) writeForever(msgs <-chan message.Message) {
+	for {
+		select {
+		case msg := <-msgs:
+			p.w.Write(p.ctx, msg)
+
+		case dst := <-p.dstChan:
+			p.w.Reset(p.ctx, dst)
+
+		case <-p.ctx.Done():
+			return
+		}
+	}
 }
 
 func (p *Pipeline) Stop() {

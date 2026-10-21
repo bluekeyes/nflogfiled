@@ -19,6 +19,7 @@ import (
 	"github.com/florianl/go-nflog/v2"
 )
 
+// TODO(bkeyes): This ins't much of a pipeline test since it doesn't use Pipeline at all... should be in a different file/package
 func TestRandomMessageRoundtrip(t *testing.T) {
 	seed := seedFromEnv(t)
 	iters := itersFromEnv(t)
@@ -118,16 +119,16 @@ func roundtripCases(ctx context.Context, cases []testgen.Case) []error {
 }
 
 func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter) []string {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	msgs := make(chan message.Message, len(cases))
 	done := make(chan struct{})
 
-	w := testgen.NewLineRecordingWriteCloser(len(cases))
+	dst := testgen.NewLineRecordingWriteCloser(len(cases))
 
 	go func() {
-		logfile.NewWriter(msgs, f).Write(ctx, w)
+		w := logfile.NewWriter(dst, f)
+		for msg := range msgs {
+			w.Write(ctx, msg)
+		}
 		close(done)
 	}()
 
@@ -148,17 +149,15 @@ func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter)
 		index++
 	}
 
-	// Wait for the target to recieve all of the expected cases. This must
-	// happen before we cancel the context, as logfile.Writer does not consume
-	// all bufferred messages before exiting.
-	<-w.Done()
+	// Stop the writer after buffering all messages through the hook
+	close(msgs)
 
-	// Once we received all the output, cancel the context and wait for the
-	// writer goroutine to exit.
-	cancel()
+	// Wait to receive the expected number of lines and for the writer to exit
+	// TODO(bkeyes): do we even need the recording writer now that we fully control the write loop?
+	<-dst.Done()
 	<-done
 
-	return w.Lines()
+	return dst.Lines()
 }
 
 // defaultTestSeed is an arbitrary seed that makes generated tests
