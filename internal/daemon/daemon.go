@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
 )
@@ -18,6 +15,7 @@ const (
 type Daemon struct {
 	mappings     []groups.Mapping
 	pipelineOpts PipelineOptions
+	reload       chan struct{}
 }
 
 type Config struct {
@@ -31,7 +29,9 @@ func NewDaemon(config Config) (*Daemon, error) {
 	}
 
 	d := Daemon{
-		mappings: config.Mappings,
+		mappings:     config.Mappings,
+		pipelineOpts: config.Pipeline,
+		reload:       make(chan struct{}, 1),
 	}
 	return &d, nil
 }
@@ -49,12 +49,9 @@ func (d *Daemon) Start(ctx context.Context) error {
 		}
 	}
 
-	reload := make(chan os.Signal, 1)
-	signal.Notify(reload, syscall.SIGHUP)
-
 	for {
 		select {
-		case <-reload:
+		case <-d.reload:
 			for _, p := range pipelines {
 				if err := p.ReloadFile(); err != nil {
 					slog.ErrorContext(ctx, "error reloading file", "error", err)
@@ -65,7 +62,14 @@ func (d *Daemon) Start(ctx context.Context) error {
 			return nil
 		}
 	}
+}
 
+// Reload tells the daemon to reopen all files.
+func (d *Daemon) Reload() {
+	select {
+	case d.reload <- struct{}{}:
+	default:
+	}
 }
 
 func validateMappings(mappings []groups.Mapping) error {

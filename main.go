@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/bluekeyes/nflogfiled/internal/cli"
@@ -93,6 +94,20 @@ func main() {
 	if err != nil {
 		die(err)
 	}
+
+	reload := make(chan os.Signal, 1)
+	signal.Notify(reload, syscall.SIGHUP)
+
+	go func() {
+		for {
+			select {
+			case <-reload:
+				d.Reload()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	if err := d.Start(ctx); err != nil {
 		die(fmt.Errorf("daemon failed to start: %w", err))
