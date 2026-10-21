@@ -32,19 +32,38 @@ func (s *byteSource) Uint64() uint64 {
 	return binary.BigEndian.Uint64(v[:])
 }
 
+// TimeValue advances by one second on each call to Now(). It starts from an
+// arbitrary fixed time, so by default, every TimeValue produces the same
+// sequence of times.
+type TimeValue struct {
+	Time time.Time
+}
+
+func NewTimeValue() *TimeValue {
+	return &TimeValue{
+		Time: time.Date(2026, 8, 12, 0, 0, 0, 0, time.UTC),
+	}
+}
+
+func (v *TimeValue) Now() time.Time {
+	t := v.Time
+	v.Time = v.Time.Add(time.Second)
+	return t
+}
+
 // Values creates values to use in generated test cases. Values are derived
 // from a Source of arbitrary data or are deterministic. Provided a sequence of
 // calls to the Source returns deterministic values, a sequence of calls to
 // methods of Values will always return the same values.
 type Values struct {
 	src  Source
-	time time.Time
+	time *TimeValue
 }
 
 func NewValues(src Source) *Values {
 	return &Values{
 		src:  src,
-		time: time.Date(2026, 8, 12, 0, 0, 0, 0, time.UTC),
+		time: NewTimeValue(),
 	}
 }
 
@@ -93,9 +112,7 @@ func (v *Values) IPv6Addr() netip.Addr {
 // time value is not derived from the Source. It starts from a known value and
 // each call moves forward by a fixed amount.
 func (v *Values) Time() time.Time {
-	t := v.time
-	v.time = v.time.Add(time.Second)
-	return t
+	return v.time.Now()
 }
 
 func (v *Values) Pick[T any](vals ...T) T {
