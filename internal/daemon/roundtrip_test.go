@@ -121,13 +121,15 @@ func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter)
 	msgs := make(chan message.Message, len(cases))
 	done := make(chan struct{})
 
-	dst := testgen.NewLineRecordingWriteCloser(len(cases))
+	dst := testgen.NewLineRecordingWriteCloser()
 
 	go func() {
 		w := logfile.NewWriter(dst, f)
 		for msg := range msgs {
 			w.Write(ctx, msg)
 		}
+
+		dst.Close()
 		close(done)
 	}()
 
@@ -148,12 +150,9 @@ func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter)
 		index++
 	}
 
-	// Stop the writer after buffering all messages through the hook
+	// Stop the writer after buffering all messages through the hook, then wait
+	// for it to close the destination and exit
 	close(msgs)
-
-	// Wait to receive the expected number of lines and for the writer to exit
-	// TODO(bkeyes): do we even need the recording writer now that we fully control the write loop?
-	<-dst.Done()
 	<-done
 
 	return dst.Lines()
