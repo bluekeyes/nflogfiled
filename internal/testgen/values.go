@@ -79,8 +79,23 @@ func (v *Values) Uint32() uint32 {
 	return uint32(v.src.Uint64() >> 32)
 }
 
+func (v *Values) Uint64() uint64 {
+	return v.src.Uint64()
+}
+
 func (v *Values) Bool() bool {
 	return int64(v.src.Uint64()) < 0
+}
+
+func (v *Values) BoolRatio(x, y int) bool {
+	switch {
+	case x <= 0 || y <= 0:
+		return false
+	case x >= y:
+		return true
+	}
+	// Must return false if Uint64() returns 0 for consistency with Bool()
+	return v.IntN(y) >= y-x
 }
 
 func (v *Values) IntN(n int) int {

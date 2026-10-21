@@ -27,9 +27,15 @@ func TestRandomMessageRoundtrip(t *testing.T) {
 
 	for i := range iters {
 		v := testgen.NewValues(rand.NewPCG(seed, uint64(i)))
-		cases := testgen.GenerateBatch(v, 1+v.IntN(8))
 
-		if errs := roundtripCases(t.Context(), cases); len(errs) > 0 {
+		fieldSet := message.AllFields
+		if v.BoolRatio(1, 4) {
+			fieldSet = message.FieldSet(v.Uint64())
+		}
+
+		cases := testgen.GenerateBatch(v, 1+v.IntN(8), testgen.WithMask(fieldSet))
+
+		if errs := roundtripCases(t.Context(), cases, fieldSet); len(errs) > 0 {
 			var casesStr strings.Builder
 			for i, c := range cases {
 				fmt.Fprintf(&casesStr, "%d: %s\n", i, c)
@@ -52,9 +58,15 @@ func FuzzMessageRoundtrip(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, b []byte) {
 		v := testgen.NewValues(testgen.ByteSource(b))
-		cases := testgen.GenerateBatch(v, 1+v.IntN(4))
 
-		if errs := roundtripCases(t.Context(), cases); len(errs) > 0 {
+		fieldSet := message.AllFields
+		if v.BoolRatio(1, 4) {
+			fieldSet = message.FieldSet(v.Uint64())
+		}
+
+		cases := testgen.GenerateBatch(v, 1+v.IntN(4), testgen.WithMask(fieldSet))
+
+		if errs := roundtripCases(t.Context(), cases, fieldSet); len(errs) > 0 {
 			var casesStr strings.Builder
 			for i, c := range cases {
 				fmt.Fprintf(&casesStr, "%d: %s\n", i, c)
@@ -69,12 +81,11 @@ func FuzzMessageRoundtrip(f *testing.F) {
 	})
 }
 
-func roundtripCases(ctx context.Context, cases []testgen.Case) []error {
+func roundtripCases(ctx context.Context, cases []testgen.Case, fieldSet message.FieldSet) []error {
 	var errs []error
 
-	// TODO(bkeyes): output field selection should also be randomized
-	textLines := runPipeline(ctx, cases, &message.TextFormatter{Fields: message.AllFields})
-	jsonLines := runPipeline(ctx, cases, &message.JSONFormatter{Fields: message.AllFields})
+	textLines := runPipeline(ctx, cases, &message.TextFormatter{Fields: fieldSet})
+	jsonLines := runPipeline(ctx, cases, &message.JSONFormatter{Fields: fieldSet})
 
 	textObs := make([]testgen.Observation, len(textLines))
 	for i, line := range textLines {

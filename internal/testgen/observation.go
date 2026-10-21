@@ -48,8 +48,10 @@ type Observation struct {
 // present fields and fields in the FieldSet.
 func (o Observation) Mask(fs message.FieldSet) Observation {
 	var obs Observation
-	obs.Timestamp = o.Timestamp
 
+	if fs.Has(message.FieldReceivedAt) {
+		obs.Timestamp = o.Timestamp
+	}
 	if fs.Has(message.FieldGroup) {
 		obs.Group = o.Group
 	}
