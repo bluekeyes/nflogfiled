@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
-	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -18,12 +17,7 @@ import (
 	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/bluekeyes/nflogfiled/internal/testgen"
 	"github.com/florianl/go-nflog/v2"
-	"github.com/google/go-cmp/cmp"
 )
-
-var cmpOpts = []cmp.Option{
-	cmp.Comparer(func(a, b netip.Addr) bool { return a == b }),
-}
 
 func TestRandomMessageRoundtrip(t *testing.T) {
 	seed := seedFromEnv(t)
@@ -111,13 +105,13 @@ func roundtripCases(ctx context.Context, cases []testgen.Case) []error {
 		wantObs[i] = c.Want
 	}
 
-	if diff := cmp.Diff(wantObs, textObs, cmpOpts...); diff != "" {
+	if diff := testgen.DiffObservations(wantObs, textObs); diff != "" {
 		errs = append(errs, fmt.Errorf("incorrect text observations (-want, +got):\n%s", diff))
 	}
-	if diff := cmp.Diff(wantObs, jsonObs, cmpOpts...); diff != "" {
+	if diff := testgen.DiffObservations(wantObs, jsonObs); diff != "" {
 		errs = append(errs, fmt.Errorf("incorrect JSON observations (-want, +got):\n%s", diff))
 	}
-	if diff := cmp.Diff(textObs, jsonObs, cmpOpts...); diff != "" {
+	if diff := testgen.DiffObservations(textObs, jsonObs); diff != "" {
 		errs = append(errs, fmt.Errorf("text and JSON observations differ (-text, +json):\n%s", diff))
 	}
 	return errs

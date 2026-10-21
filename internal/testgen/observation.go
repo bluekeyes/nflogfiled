@@ -1,9 +1,11 @@
 package testgen
 
 import (
+	"bytes"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"iter"
 	"net"
 	"net/netip"
 	"strconv"
@@ -11,6 +13,8 @@ import (
 	"time"
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
+	"github.com/bluekeyes/nflogfiled/internal/message"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/gopacket/layers"
 )
 
@@ -38,6 +42,101 @@ type Observation struct {
 	TCPSeq    *uint32
 	TCPFlags  *string
 	TCPWindow *uint16
+}
+
+// Mask returns a copy of the Observation that contains the intersection of the
+// present fields and fields in the FieldSet.
+func (o Observation) Mask(fs message.FieldSet) Observation {
+	var obs Observation
+	obs.Timestamp = o.Timestamp
+
+	if fs.Has(message.FieldGroup) {
+		obs.Group = o.Group
+	}
+	if fs.Has(message.FieldHook) {
+		obs.Hook = o.Hook
+	}
+	if fs.Has(message.FieldMark) {
+		obs.Mark = o.Mark
+	}
+	if fs.Has(message.FieldPrefix) {
+		obs.Prefix = o.Prefix
+	}
+	if fs.Has(message.FieldUID) {
+		obs.UID = o.UID
+	}
+	if fs.Has(message.FieldGID) {
+		obs.GID = o.GID
+	}
+	if fs.Has(message.FieldVLANIdentifier) {
+		obs.VLANID = o.VLANID
+	}
+	if fs.Has(message.FieldPacketProtocol) {
+		obs.Protocol = o.Protocol
+	}
+	if fs.Has(message.FieldPacketSrcIP) {
+		obs.SrcIP = o.SrcIP
+	}
+	if fs.Has(message.FieldPacketSrcPort) {
+		obs.SrcPort = o.SrcPort
+	}
+	if fs.Has(message.FieldPacketSrcMAC) {
+		obs.SrcMAC = o.SrcMAC
+	}
+	if fs.Has(message.FieldPacketDstIP) {
+		obs.DstIP = o.DstIP
+	}
+	if fs.Has(message.FieldPacketDstPort) {
+		obs.DstPort = o.DstPort
+	}
+	if fs.Has(message.FieldPacketDstMAC) {
+		obs.DstMAC = o.DstMAC
+	}
+	if fs.Has(message.FieldPacketTTL) {
+		obs.TTL = o.TTL
+	}
+	if fs.Has(message.FieldPacketLength) {
+		obs.Length = o.Length
+	}
+	if fs.Has(message.FieldPacketTCPAck) {
+		obs.TCPAck = o.TCPAck
+	}
+	if fs.Has(message.FieldPacketTCPSeq) {
+		obs.TCPSeq = o.TCPSeq
+	}
+	if fs.Has(message.FieldPacketTCPFlags) {
+		obs.TCPFlags = o.TCPFlags
+	}
+	if fs.Has(message.FieldPacketTCPWindow) {
+		obs.TCPWindow = o.TCPWindow
+	}
+
+	return obs
+}
+
+func ObservationsFromFile(content []byte, parse func(string) (Observation, error)) iter.Seq2[Observation, error] {
+	return func(yield func(Observation, error) bool) {
+		for len(content) > 0 {
+			var line []byte
+			if next := bytes.IndexByte(content, '\n'); next >= 0 {
+				line = content[:next]
+				content = content[next+1:]
+			} else {
+				line = content
+				content = nil
+			}
+			if !yield(parse(string(line))) {
+				return
+			}
+		}
+	}
+}
+
+func DiffObservations(want, got []Observation) string {
+	return cmp.Diff(
+		want, got,
+		cmp.Comparer(func(a, b netip.Addr) bool { return a == b }),
+	)
 }
 
 // ObservationFromText parses an Observation from a line of text-formatted log output.
