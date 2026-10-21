@@ -19,7 +19,6 @@ import (
 	"github.com/florianl/go-nflog/v2"
 )
 
-// TODO(bkeyes): This ins't much of a pipeline test since it doesn't use Pipeline at all... should be in a different file/package
 func TestRandomMessageRoundtrip(t *testing.T) {
 	seed := seedFromEnv(t)
 	iters := itersFromEnv(t)
