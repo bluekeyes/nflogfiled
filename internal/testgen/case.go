@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
+	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/florianl/go-nflog/v2"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -128,20 +129,49 @@ var tcpFlagOptions = []struct {
 	{"NS", func(tcp *layers.TCP) { tcp.NS = true }},
 }
 
-func GenerateBatch(v *Values, n int) []Case {
+type generateOpts struct {
+	mask  message.FieldSet
+	group groups.Group
+}
+
+type GenerateOption func(*generateOpts)
+
+func WithGroup(g groups.Group) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.group = g
+	}
+}
+
+func WithMask(fs message.FieldSet) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.mask = fs
+	}
+}
+
+func GenerateBatch(v *Values, n int, options ...GenerateOption) []Case {
 	cases := make([]Case, n)
 	for i := range n {
-		cases[i] = Generate(v)
+		cases[i] = Generate(v, options...)
 	}
 	return cases
 }
 
 // Generate produces a single random test case.
-func Generate(v *Values) Case {
+func Generate(v *Values, options ...GenerateOption) Case {
 	var attr nflog.Attribute
 	var want Observation
 
-	group := groups.Group(v.Uint16())
+	var opts generateOpts
+	for _, o := range options {
+		o(&opts)
+	}
+
+	var group groups.Group
+	if opts.group > 0 {
+		group = opts.group
+	} else {
+		group = groups.Group(v.Uint16())
+	}
 	want.Group = &group
 
 	receivedAt := v.Time()
@@ -185,6 +215,10 @@ func Generate(v *Values) Case {
 	}
 
 	generatePacket(v, &attr, &want)
+
+	if opts.mask != message.NoFields {
+		want = want.Mask(opts.mask)
+	}
 
 	return Case{
 		Group:      group,
