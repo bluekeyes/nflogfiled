@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
@@ -51,7 +52,10 @@ type Pipeline struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	conns []Connection
+	conns   []Connection
+	msgs    chan message.Message
+	stopped chan struct{}
+	closer  sync.Once
 
 	w       *logfile.Writer
 	dstChan chan io.WriteCloser
@@ -125,16 +129,22 @@ func setDefaultOptionsIfMissing(opts *PipelineOptions) {
 	}
 }
 
-func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOptions) (*Pipeline, error) {
+// StartPipeline starts the pipelines. It runs until a call to [Stop].
+func StartPipeline(mapping groups.Mapping, opts PipelineOptions) (*Pipeline, error) {
 	setDefaultOptionsIfMissing(&opts)
 
-	ctx, cancel := context.WithCancel(ctx)
+	// Internal context is used to manage the lifecycle of nflog connections.
+	// In the current version of go-nflog, you must cancel the context before
+	// closing the connection, otherwise conn.Close() will hang.
+	ctx, cancel := context.WithCancel(context.Background())
 	msgs := make(chan message.Message, opts.ChannelBufferSize)
 
 	p := &Pipeline{
 		ctx:      ctx,
 		cancel:   cancel,
 		conns:    make([]Connection, len(mapping.Groups)),
+		msgs:     msgs,
+		stopped:  make(chan struct{}),
 		dstChan:  make(chan io.WriteCloser),
 		fileName: mapping.File,
 		fileMode: opts.FileMode,
@@ -154,18 +164,13 @@ func StartPipeline(ctx context.Context, mapping groups.Mapping, opts PipelineOpt
 		var err error
 		p.conns[i], err = opts.ConnectFunc(ctx, g, hook, errFunc, opts)
 		if err != nil {
-			p.cleanup()
+			p.closeConns()
+			p.w.Reset(nil)
 			return nil, err
 		}
 	}
 
-	go p.writeForever(msgs)
-
-	// Close all connections when the root context is canceled
-	go func() {
-		<-ctx.Done()
-		p.cleanup()
-	}()
+	go p.writeForever()
 
 	return p, nil
 }
@@ -184,6 +189,25 @@ func (p *Pipeline) ReloadFile() error {
 	return nil
 }
 
+// Stop stops the pipeline, blocking until it writes all buffered messages or
+// the context is canceled. Calling Stop multiple times is safe, but only the
+// first call will wait to drain messages.
+func (p *Pipeline) Stop(ctx context.Context) {
+	p.closer.Do(func() {
+		p.closeConns()
+
+		select {
+		case <-p.stopped:
+		case <-ctx.Done():
+			slog.WarnContext(ctx, "interrupted while stopping writer", "err", ctx.Err())
+			return
+		}
+
+		p.drain(ctx)
+		p.w.Reset(nil)
+	})
+}
+
 func (p *Pipeline) openDestination() (io.WriteCloser, error) {
 	if p.fileName == StdoutFileName {
 		return logfile.Stdout(), nil
@@ -196,26 +220,36 @@ func (p *Pipeline) openDestination() (io.WriteCloser, error) {
 	return dst, err
 }
 
-func (p *Pipeline) writeForever(msgs <-chan message.Message) {
+func (p *Pipeline) writeForever() {
+	defer close(p.stopped)
 	for {
 		select {
-		case msg := <-msgs:
-			p.w.Write(p.ctx, msg)
-
+		case msg := <-p.msgs:
+			p.w.Write(msg)
 		case dst := <-p.dstChan:
-			p.w.Reset(p.ctx, dst)
-
+			p.w.Reset(dst)
 		case <-p.ctx.Done():
 			return
 		}
 	}
 }
 
-func (p *Pipeline) Stop() {
-	p.cleanup()
+func (p *Pipeline) drain(ctx context.Context) {
+	for {
+		select {
+		case msg := <-p.msgs:
+			p.w.Write(msg)
+		default:
+			return
+		case <-ctx.Done():
+			slog.WarnContext(ctx, "interrupted while draining message buffer", "err", ctx.Err())
+			return
+		}
+	}
 }
 
-func (p *Pipeline) cleanup() {
+func (p *Pipeline) closeConns() {
+	// Cancel must happen first, otherwise Close() can block forever
 	p.cancel()
 	for _, c := range p.conns {
 		if c != nil { // may be called during initialization with a partial connection slice
