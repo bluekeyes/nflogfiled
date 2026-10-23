@@ -137,7 +137,7 @@ func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter)
 	go func() {
 		w := logfile.NewWriter(dst, f)
 		for msg := range msgs {
-			w.Write(ctx, msg)
+			w.Write(msg)
 		}
 
 		dst.Close()
