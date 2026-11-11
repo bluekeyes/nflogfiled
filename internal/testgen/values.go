@@ -99,7 +99,17 @@ func (v *Values) BoolRatio(x, y int) bool {
 }
 
 func (v *Values) IntN(n int) int {
+	if n == 0 {
+		return 0
+	}
 	return int(v.src.Uint64() % uint64(n))
+}
+
+func (v *Values) Duration(n time.Duration) time.Duration {
+	if n == 0 {
+		return 0
+	}
+	return time.Duration(v.src.Uint64() % uint64(n))
 }
 
 func (v *Values) Bytes(n int) []byte {

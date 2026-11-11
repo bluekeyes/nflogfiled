@@ -130,15 +130,15 @@ var tcpFlagOptions = []struct {
 }
 
 type generateOpts struct {
-	mask  message.FieldSet
-	group groups.Group
+	mask   message.FieldSet
+	groups []groups.Group
 }
 
 type GenerateOption func(*generateOpts)
 
-func WithGroup(g groups.Group) GenerateOption {
+func WithGroups(gs ...groups.Group) GenerateOption {
 	return func(opts *generateOpts) {
-		opts.group = g
+		opts.groups = gs
 	}
 }
 
@@ -167,8 +167,8 @@ func Generate(v *Values, options ...GenerateOption) Case {
 	}
 
 	var group groups.Group
-	if opts.group > 0 {
-		group = opts.group
+	if len(opts.groups) > 0 {
+		group = v.Pick(opts.groups...)
 	} else {
 		group = groups.Group(v.Uint16())
 	}
