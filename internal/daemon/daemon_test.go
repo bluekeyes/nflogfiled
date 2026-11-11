@@ -58,6 +58,15 @@ func (s Scenario) MarshalJSONTo(enc *jsontext.Encoder) error {
 	)))
 }
 
+func (s Scenario) TotalMessages() int {
+	n := 0
+	for _, c := range s.Messages {
+		n += len(c.Messages)
+	}
+	return n
+
+}
+
 // OpenBehavior describes how a particular call to Open() behaves.
 type OpenBehavior struct {
 	Delay time.Duration
@@ -82,29 +91,11 @@ type MessageChunk struct {
 	Duration time.Duration
 }
 
-func (ma MessageChunk) String() string {
-	// TODO(bkeyes): format this appropriately, may need to indent cases.
-	// Alternately, have everything encode to JSON instead of using the custom
-	// string formatting for testgen.Case; using JSON would also allow
-	// reloading a specific failing scenario from a file. Maybe need a special
-	// decoder/type for nflog.Attribute, or stick with default names. Maybe
-	// json/v2 can help with this?
-	return ""
-}
-
 const (
-	MaxActionsPerTest = 10
-
-	MaxSleepDuration = 10 * time.Second
-	MaxOpenDelay     = 5 * time.Second
-
-	MaxWriteDelay         = 2 * time.Second
-	MaxWriteDelayDuration = 10 * time.Second
-
 	MinScenarioDuration = 1 * time.Second
 	MaxScenarioDuration = 60 * time.Second
 
-	MinMessageTime     = 1 * time.Second
+	MessageSliceTime   = 1 * time.Second
 	MaxMessagesPerTest = 100
 )
 
@@ -148,12 +139,6 @@ func runDaemonTest(t *testing.T, scenario Scenario) {
 	timeValue := testgen.NewTimeValue()
 	mockLog := NewMockNflog()
 
-	// TODO(bkeyes): pre-calculate this in the Scenario / provide a helper method?
-	totalMessages := 0
-	for _, a := range scenario.Messages {
-		totalMessages += len(a.Messages)
-	}
-
 	var outputs []*ScenarioOutput
 	synctest.Test(t, func(t *testing.T) {
 		start := time.Now()
@@ -180,7 +165,8 @@ func runDaemonTest(t *testing.T, scenario Scenario) {
 				Format: &message.TextFormatter{
 					Fields: daemon.DefaultFieldSet,
 				},
-				ChannelBufferSize: totalMessages,
+				// A dropped message always fails the test, so make sure the buffer can hold all of the messages
+				ChannelBufferSize: scenario.TotalMessages(),
 				ConnectFunc:       mockLog.Connect,
 				OpenFunc: func(path string, mode os.FileMode) (io.WriteCloser, error) {
 					openCount++
@@ -230,7 +216,6 @@ func runDaemonTest(t *testing.T, scenario Scenario) {
 					continue
 				}
 
-				// TODO(bkeyes): should this account for time spent in Send?
 				delay := a.Duration / time.Duration(len(a.Messages))
 				for _, msg := range a.Messages {
 					if delay > 0 {
@@ -313,7 +298,7 @@ func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenari
 	duration := MinScenarioDuration + v.Duration(MaxScenarioDuration-MinScenarioDuration)
 
 	messageCount := 1 + v.IntN(MaxMessagesPerTest)
-	messageSlices := int((duration + MinMessageTime) / MinMessageTime)
+	messageSlices := int((duration + MessageSliceTime) / MessageSliceTime)
 	messageChunkCount := 1 + v.IntN(messageSlices)
 	messageChunks := make([]MessageChunk, messageChunkCount)
 
@@ -332,7 +317,7 @@ func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenari
 
 		messageChunks[i] = MessageChunk{
 			Messages: testgen.GenerateBatch(v, n, opts...),
-			Duration: time.Duration(slices) * MinMessageTime,
+			Duration: time.Duration(slices) * MessageSliceTime,
 		}
 
 		messageSlices -= slices
@@ -372,7 +357,7 @@ func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenari
 
 		for i := range v.PickIndexN(openDelayCount, len(openCalls)) {
 			// TODO(bkeyes): bias this towards smaller values? coordiate with reloads or messages?
-			openCalls[i].Delay = v.Duration(3 * MinMessageTime)
+			openCalls[i].Delay = v.Duration(3 * MessageSliceTime)
 		}
 
 		var openErrorCount int
@@ -405,7 +390,7 @@ func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenari
 	var writeDelays []WriteDelay
 	for writeDelayWindow > 0 {
 		var window time.Duration
-		if writeDelayWindow <= MinMessageTime {
+		if writeDelayWindow <= MessageSliceTime {
 			window = writeDelayWindow
 		} else {
 			window = v.Duration(writeDelayWindow)
@@ -416,7 +401,7 @@ func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenari
 		if v.Bool() {
 			delay = v.Duration(50 * time.Millisecond)
 		} else {
-			delay = v.Duration(2 * MinMessageTime)
+			delay = v.Duration(2 * MessageSliceTime)
 		}
 
 		var start time.Duration
