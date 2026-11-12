@@ -34,6 +34,9 @@ type Scenario struct {
 	// determine how long the test executes in real time.
 	Duration time.Duration
 
+	// Groups is the set of groups that receive messages in this test.
+	Groups []groups.Group
+
 	// ReloadAt gives a list of offsets from the start of the test at which to
 	// trigger reloads. OpenCalls determines how Open() behaves during each
 	// reload and must be the same length as ReloadAt.
@@ -113,10 +116,7 @@ func TestRandomDaemonOperations(t *testing.T) {
 			configureTestSlog(t)
 
 			v := testgen.NewValues(rand.NewPCG(seed, uint64(i)))
-			scenario := generateScenario(v,
-				testgen.WithGroups(1), // TODO(bkeyes): figure out how to handle groups
-				testgen.WithMask(daemon.DefaultFieldSet),
-			)
+			scenario := generateScenario(v, testgen.WithMask(daemon.DefaultFieldSet))
 			runDaemonTest(t, scenario)
 
 			if t.Failed() {
@@ -148,10 +148,7 @@ func FuzzDaemonOperations(f *testing.F) {
 
 		v := testgen.NewValues(testgen.ByteSource(b))
 
-		scenario := generateScenario(v,
-			testgen.WithGroups(1), // TODO(bkeyes): figure out how to handle groups
-			testgen.WithMask(daemon.DefaultFieldSet),
-		)
+		scenario := generateScenario(v, testgen.WithMask(daemon.DefaultFieldSet))
 		runDaemonTest(t, scenario)
 
 		if t.Failed() {
@@ -178,6 +175,7 @@ func TestDaemonDrainsMessagesOnStop(t *testing.T) {
 
 	runDaemonTest(t, Scenario{
 		Duration: 10 * time.Second,
+		Groups:   []groups.Group{1},
 		WriteDelays: []WriteDelay{
 			// Block writes for the entire test duration
 			{
@@ -380,7 +378,7 @@ func runDaemonTest(t *testing.T, scenario Scenario) {
 		config := daemon.Config{
 			Mappings: []groups.Mapping{
 				{
-					Groups: []groups.Group{1}, // TODO(bkeyes): avoid hardcoded group, maybe part of scenario?
+					Groups: scenario.Groups,
 					File:   "messages.log",
 				},
 			},
@@ -430,8 +428,10 @@ func runDaemonTest(t *testing.T, scenario Scenario) {
 		go func() {
 			defer close(sentAllMessages)
 
-			// TODO(bkeyes): need to wait for connection on all possible groups here
-			mockLog.WaitForConnect(1)
+			// Wait for connections on all possible groups
+			for _, g := range scenario.Groups {
+				mockLog.WaitForConnect(g)
+			}
 
 			for _, a := range scenario.Messages {
 				if len(a.Messages) == 0 {
@@ -519,6 +519,13 @@ const (
 
 func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenario {
 	duration := MinScenarioDuration + v.Duration(MaxScenarioDuration-MinScenarioDuration)
+
+	groupCount := 1 + v.IntN(3)
+	groupSet := make([]groups.Group, groupCount)
+	for i, n := range v.PickIndexN(groupCount, 20) {
+		groupSet[i] = groups.Group(n + 1)
+	}
+	opts = append(opts, testgen.WithGroups(groupSet...))
 
 	messageCount := 1 + v.IntN(MaxMessagesPerTest)
 	messageSlices := int((duration + MessageSliceTime) / MessageSliceTime)
@@ -645,6 +652,7 @@ func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenari
 
 	return Scenario{
 		Duration:    duration,
+		Groups:      groupSet,
 		Messages:    messageChunks,
 		ReloadAt:    reloads,
 		OpenCalls:   openCalls,
