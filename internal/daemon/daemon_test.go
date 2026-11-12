@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/bluekeyes/nflogfiled/internal/daemon"
 	"github.com/bluekeyes/nflogfiled/internal/groups"
+	"github.com/bluekeyes/nflogfiled/internal/logfile"
 	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/bluekeyes/nflogfiled/internal/testgen"
 	"github.com/florianl/go-nflog/v2"
@@ -133,6 +135,198 @@ func TestRandomDaemonOperations(t *testing.T) {
 			return
 		}
 	}
+}
+
+func TestDaemonDrainsMessagesOnStop(t *testing.T) {
+	configureTestSlog(t)
+
+	v := testgen.NewValues(rand.NewPCG(28, 6)) // Seed is arbitrary
+	cases := testgen.GenerateBatch(v,
+		10,
+		testgen.WithGroups(1),
+		testgen.WithMask(daemon.DefaultFieldSet),
+	)
+
+	runDaemonTest(t, Scenario{
+		Duration: 10 * time.Second,
+		WriteDelays: []WriteDelay{
+			// Block writes for the entire test duration
+			{
+				Start: 0,
+				End:   10 * time.Second,
+				Delay: 10 * time.Second,
+			},
+		},
+		Messages: []MessageChunk{
+			{
+				Messages: cases,
+				Duration: 0,
+			},
+		},
+	})
+}
+
+func TestDaemonOutputContinuesDuringRenameReload(t *testing.T) {
+	const (
+		messageCount = 5
+		group        = groups.Group(1)
+	)
+
+	configureTestSlog(t)
+
+	timeValue := testgen.NewTimeValue()
+	mockLog := NewMockNflog()
+
+	v := testgen.NewValues(rand.NewPCG(7, 67)) // Seed is arbitrary
+	batch1 := testgen.GenerateBatch(v,
+		messageCount,
+		testgen.WithGroups(1),
+		testgen.WithMask(daemon.DefaultFieldSet),
+	)
+	batch2 := testgen.GenerateBatch(v,
+		messageCount,
+		testgen.WithGroups(1),
+		testgen.WithMask(daemon.DefaultFieldSet),
+	)
+
+	file := filepath.Join(t.TempDir(), "messages.log")
+	fileRotated := filepath.Join(t.TempDir(), "messages.1.log")
+
+	openGate := make(chan struct{})
+	outputs := make(chan *NotifyingWriteCloser)
+
+	config := daemon.Config{
+		Mappings: []groups.Mapping{
+			{
+				Groups: []groups.Group{group},
+				File:   file,
+			},
+		},
+		Pipeline: daemon.PipelineOptions{
+			Format: &message.TextFormatter{
+				Fields: daemon.DefaultFieldSet,
+			},
+			ChannelBufferSize: messageCount,
+			ConnectFunc:       mockLog.Connect,
+			OpenFunc: func(path string, mode os.FileMode) (io.WriteCloser, error) {
+				<-openGate
+				w, err := logfile.Open(path, mode)
+				if err != nil {
+					t.Errorf("error opening file: %v", err)
+					outputs <- nil
+					return nil, err
+				}
+
+				nw := NewNotifyingWriteCloser(w)
+				outputs <- nw
+				return nw, nil
+			},
+			NowFunc: timeValue.Now,
+		},
+	}
+
+	d, err := daemon.NewDaemon(config)
+	if err != nil {
+		t.Fatalf("error constructing daemon: %v", err)
+	}
+
+	go func() {
+		if err := d.Start(t.Context()); err != nil {
+			t.Errorf("error starting daemon: %v", err)
+		}
+	}()
+
+	// Wait for the open gate and release allow the initial Open call
+	openGate <- struct{}{}
+	output1 := <-outputs
+	if output1 == nil {
+		return
+	}
+
+	// Wait for connection so we can send messages when ready
+	if err := mockLog.WaitForConnectUntil(group, 5*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	// Rename the existing file
+	if err := os.Rename(file, fileRotated); err != nil {
+		t.Fatalf("error renaming output file: %v", err)
+	}
+
+	// Trigger a reload and wait for the open gate
+	d.Reload()
+	openGate <- struct{}{}
+
+	// Reload remains in progress until we release the open function.
+	// Send all of the messages, which should still go to the old file
+	for _, m := range batch1 {
+		mockLog.Send(group, m.Attr)
+	}
+	if err := output1.WaitForWritesUntil(messageCount, 5*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	// Release the open function and get the second output
+	output2 := <-outputs
+	if output2 == nil {
+		return
+	}
+
+	// Don't send messages until the old file closes, which is the signal that
+	// all new messages should go to the new file
+	if err := output1.WaitForCloseUntil(5 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	// Send second batch of messages and wait for them on the second file
+	for _, m := range batch2 {
+		mockLog.Send(group, m.Attr)
+	}
+	if err := output2.WaitForWritesUntil(messageCount, 5*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	got1, err := loadTextObservations(fileRotated)
+	if err != nil {
+		t.Fatalf("error loading batch 1 output: %v", err)
+	}
+
+	var want1 []testgen.Observation
+	for _, c := range batch1 {
+		want1 = append(want1, c.Want)
+	}
+	if diff := testgen.DiffObservations(want1, got1); diff != "" {
+		t.Errorf("incorrect observations in batch 1 (-want, +got):\n%s", diff)
+	}
+
+	got2, err := loadTextObservations(file)
+	if err != nil {
+		t.Fatalf("error loading batch 2 output: %v", err)
+	}
+
+	var want2 []testgen.Observation
+	for _, c := range batch2 {
+		want2 = append(want2, c.Want)
+	}
+	if diff := testgen.DiffObservations(want2, got2); diff != "" {
+		t.Errorf("incorrect observations in batch 2 (-want, +got):\n%s", diff)
+	}
+}
+
+func loadTextObservations(path string) ([]testgen.Observation, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var got []testgen.Observation
+	for obs, err := range testgen.ObservationsFromFile(b, testgen.ObservationFromText) {
+		if err != nil {
+			return nil, fmt.Errorf("invalid observation: %w", err)
+		}
+		got = append(got, obs)
+	}
+	return got, nil
 }
 
 func runDaemonTest(t *testing.T, scenario Scenario) {
@@ -428,21 +622,6 @@ func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenari
 	}
 }
 
-func TestDaemonDrainsMessagesOnStop(t *testing.T) {
-	// block writes
-	// queue up a bunch of messages
-	// call stop
-	// unblock writes
-	// make sure everything appears on the output
-}
-
-func TestDaemonOutputContinuesDuringReload(t *testing.T) {
-	// trigger reload
-	// once in open, block
-	// queue up a bunch of messages
-	// verify they appear on the existing file
-}
-
 type MockNflog struct {
 	mu       sync.Mutex
 	conns    map[groups.Group]*MockNflogConnection
@@ -599,6 +778,62 @@ func (o *ScenarioOutput) Writes() (writes, writesAfterClose int) {
 
 func (o *ScenarioOutput) Closed() bool {
 	return o.closed
+}
+
+type NotifyingWriteCloser struct {
+	mu            sync.Mutex
+	w             io.WriteCloser
+	writes        int
+	closed        bool
+	notifier      *notifier[int]
+	closeNotifier *notifier[any]
+}
+
+func NewNotifyingWriteCloser(w io.WriteCloser) *NotifyingWriteCloser {
+	nwc := NotifyingWriteCloser{w: w}
+	nwc.notifier = newNotifier[int](func(n int) bool {
+		return n <= nwc.writes
+	})
+	nwc.closeNotifier = newNotifier[any](func(any) bool {
+		return nwc.closed
+	})
+	return &nwc
+}
+
+func (w *NotifyingWriteCloser) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	n, err = w.w.Write(p)
+	w.writes++
+	w.notifier.notify()
+	return n, err
+}
+
+func (w *NotifyingWriteCloser) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	err := w.w.Close()
+	w.closed = true
+	w.closeNotifier.notify()
+	return err
+}
+
+func (w *NotifyingWriteCloser) WaitForWritesUntil(n int, timeout time.Duration) error {
+	w.mu.Lock()
+	waiter := w.notifier.register(n)
+	w.mu.Unlock()
+
+	return waiter.waitUntil(fmt.Sprintf("for %d writes", n), timeout)
+}
+
+func (w *NotifyingWriteCloser) WaitForCloseUntil(timeout time.Duration) error {
+	w.mu.Lock()
+	waiter := w.closeNotifier.register(nil)
+	w.mu.Unlock()
+
+	return waiter.waitUntil("for close", timeout)
 }
 
 type notifier[T any] struct {
