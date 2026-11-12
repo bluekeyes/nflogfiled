@@ -137,6 +137,35 @@ func TestRandomDaemonOperations(t *testing.T) {
 	}
 }
 
+func FuzzDaemonOperations(f *testing.F) {
+	const seedLen = 1024
+
+	f.Add(bytes.Repeat([]byte{0x00}, seedLen))
+	f.Add(bytes.Repeat([]byte{0xFF}, seedLen))
+
+	f.Fuzz(func(t *testing.T, b []byte) {
+		configureTestSlog(t)
+
+		v := testgen.NewValues(testgen.ByteSource(b))
+
+		scenario := generateScenario(v,
+			testgen.WithGroups(1), // TODO(bkeyes): figure out how to handle groups
+			testgen.WithMask(daemon.DefaultFieldSet),
+		)
+		runDaemonTest(t, scenario)
+
+		if t.Failed() {
+			if b, err := json.Marshal(scenario); err != nil {
+				t.Log("error marshalling scenario:", err)
+			} else {
+				v := jsontext.Value(b)
+				v.Indent()
+				t.Log("scenario:", v)
+			}
+		}
+	})
+}
+
 func TestDaemonDrainsMessagesOnStop(t *testing.T) {
 	configureTestSlog(t)
 
@@ -588,7 +617,7 @@ func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenari
 		if writeDelayWindow <= MessageSliceTime {
 			window = writeDelayWindow
 		} else {
-			window = v.Duration(writeDelayWindow)
+			window = MessageSliceTime + v.Duration(writeDelayWindow-MessageSliceTime)
 		}
 		writeDelayWindow -= window
 
