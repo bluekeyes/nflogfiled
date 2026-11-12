@@ -496,16 +496,17 @@ func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenari
 	messageChunkCount := 1 + v.IntN(messageSlices)
 	messageChunks := make([]MessageChunk, messageChunkCount)
 
+	remainingSlices := messageSlices
 	for i := range messageChunkCount {
 		var slices, n int
 		if i < messageChunkCount-1 {
 			remainingChunks := messageChunkCount - i - 1
-			slices = 1 + v.IntN(messageSlices-remainingChunks)
+			slices = 1 + v.IntN(remainingSlices-remainingChunks)
 			// TODO(bkeyes): make 0 messages a special condition with more weight?
 			n = v.IntN(messageCount)
 		} else {
 			// Always use whatever is left on the last action
-			slices = messageSlices
+			slices = remainingSlices
 			n = messageCount
 		}
 
@@ -514,7 +515,7 @@ func generateScenario(v *testgen.Values, opts ...testgen.GenerateOption) Scenari
 			Duration: time.Duration(slices) * MessageSliceTime,
 		}
 
-		messageSlices -= slices
+		remainingSlices -= slices
 		messageCount -= n
 	}
 
