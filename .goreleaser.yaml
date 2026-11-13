@@ -1,0 +1,46 @@
+version: 2
+
+builds:
+  - main: .
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+
+nfpms:
+  - formats: [deb, rpm]
+    file_name_template: "{{ .ConventionalFileName }}"
+    description: Minimal daemon to write nftables/nflog logs to files
+    homepage: https://github.com/bluekeyes/nflogfiled
+    maintainer: Billy Keyes <commits@billykeyes.dev>
+    license: MIT
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/nflogfiled/copyright
+        packager: deb
+        file_info:
+          mode: 0644
+      - src: LICENSE
+        dst: /usr/share/licenses/nflogfiled/LICENSE
+        type: license
+        packager: rpm
+        file_info:
+          mode: 0644
+
+# Release notes are written by hand in the GitHub UI before publishing the draft
+changelog:
+  disable: true
+
+release:
+  draft: true

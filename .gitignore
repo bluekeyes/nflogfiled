@@ -1,1 +1,5 @@
+# go build output
 /nflogfiled
+
+# goreleaser output
+dist/
