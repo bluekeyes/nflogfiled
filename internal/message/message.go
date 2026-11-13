@@ -108,10 +108,3 @@ func (f TCPFlag) String() string {
 
 	return strings.Join(s, "|")
 }
-
-func appendIfFlag(s []string, all, flag TCPFlag, v string) []string {
-	if all&flag > 0 {
-		return append(s, v)
-	}
-	return s
-}

@@ -332,7 +332,7 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 		}
 		want.TCPFlags = new(strings.Join(flagStrs, "|"))
 
-		tcp.SetNetworkLayerForChecksum(ipLayer)
+		_ = tcp.SetNetworkLayerForChecksum(ipLayer)
 		protoLayer = tcp
 
 	case layers.IPProtocolUDP:
@@ -343,7 +343,7 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 			SrcPort: layers.UDPPort(srcPort),
 			DstPort: layers.UDPPort(dstPort),
 		}
-		udp.SetNetworkLayerForChecksum(ipLayer)
+		_ = udp.SetNetworkLayerForChecksum(ipLayer)
 		protoLayer = udp
 
 	case layers.IPProtocolICMPv4:
@@ -355,7 +355,7 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 		icmp6 := &layers.ICMPv6{
 			TypeCode: layers.CreateICMPv6TypeCode(layers.ICMPv6TypeEchoRequest, 0),
 		}
-		icmp6.SetNetworkLayerForChecksum(ipLayer)
+		_ = icmp6.SetNetworkLayerForChecksum(ipLayer)
 		protoLayer = icmp6
 	}
 

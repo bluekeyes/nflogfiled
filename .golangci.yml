@@ -1,0 +1,46 @@
+version: "2"
+
+run:
+  tests: false
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - misspell
+    - revive
+    - unconvert
+    - unused
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintln(os.Stdout)
+    revive:
+      rules:
+        - name: context-keys-type
+        - name: time-naming
+        - name: var-declaration
+        - name: unexported-return
+        - name: errorf
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: increment-decrement
+        - name: var-naming
+        - name: range
+        - name: receiver-naming
+        - name: indent-error-flow
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/bluekeyes/nglogfiled
