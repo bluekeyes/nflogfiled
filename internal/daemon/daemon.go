@@ -126,11 +126,9 @@ func stopPipelines(ps []*Pipeline, timeout time.Duration) {
 	var wg sync.WaitGroup
 	for _, p := range ps {
 		if p != nil {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				p.Stop(ctx)
-			}()
+			})
 		}
 	}
 
