@@ -28,3 +28,7 @@ The primary purpose of `nflogfiled` is handling logs from `ip`, `ip6`, and
 log messages from other sources. Please file an issue if there's anything
 missing that would be useful and I'll consider adding it if it doesn't add
 significant complexity.
+
+## License
+
+MIT
