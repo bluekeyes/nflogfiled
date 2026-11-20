@@ -1,0 +1,20 @@
+# Flags for the nflogfiled service.
+#
+# Put one flag per line using the -flag=value form. Leading and trailing
+# whitespace is removed. Blank lines and lines starting with '#' are ignored.
+# Run 'nflogfiled -help' for all flags.
+#
+# The service does not start until at least one -map line is set. Output files
+# must be writable by the 'nflogfiled' user and cannot be under /etc, /usr,
+# /boot, /tmp, or home directories. The standard install creates and uses
+# /var/log/nflog.
+
+# Map nflog groups to output files. Repeat the flag for more mappings.
+#-map=1:/var/log/nflog/input.log
+#-map=2-3:/var/log/nflog/forward.log
+
+# Set the output format: 'text' (the default) or 'json'.
+#-format=json
+
+# Set the fields included in each message.
+#-fields=received_at,prefix,in_device,out_device,packet_src_ip,packet_src_port,packet_dst_ip,packet_dst_port,packet_protocol

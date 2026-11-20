@@ -1,0 +1,22 @@
+# Example logrotate configuration for nflogfiled. Copy it to
+# /etc/logrotate.d/nflogfiled and adjust as needed.
+
+/var/log/nflog/*.log {
+    weekly
+    rotate 4
+    missingok
+    notifempty
+    compress
+    delaycompress
+
+    # Rotate as the user that owns the log directory
+    su nflogfiled nflogfiled
+
+    # The daemon recreates files with its -file-mode when it reopens them
+    nocreate
+
+    sharedscripts
+    postrotate
+        systemctl reload nflogfiled.service >/dev/null 2>&1 || true
+    endscript
+}

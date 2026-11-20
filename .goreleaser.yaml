@@ -12,8 +12,15 @@ builds:
 
 archives:
   - formats: [tar.gz]
-    name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}-{{ .Arch }}
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}-{{ .Arch }}"
+    wrap_in_directory: "{{ .ProjectName }}_{{ .Version }}"
+    files:
+      - LICENSE
+      - README.md
+      - packaging/nflogfiled.service
+      - packaging/nflogfiled.sysusers
+      - packaging/flags
+      - packaging/logrotate
 
 nfpms:
   - formats: [deb, rpm]
@@ -34,6 +41,27 @@ nfpms:
         packager: rpm
         file_info:
           mode: 0644
+      - src: packaging/nflogfiled.service
+        dst: /usr/lib/systemd/system/nflogfiled.service
+        file_info:
+          mode: 0644
+      - src: packaging/nflogfiled.sysusers
+        dst: /usr/lib/sysusers.d/nflogfiled.conf
+        file_info:
+          mode: 0644
+      - src: packaging/flags
+        dst: /etc/nflogfiled/flags
+        type: config|noreplace
+        file_info:
+          mode: 0644
+      - src: packaging/logrotate
+        dst: /usr/share/doc/nflogfiled/examples/logrotate
+        file_info:
+          mode: 0644
+    scripts:
+      postinstall: packaging/scripts/postinstall.sh
+      preremove: packaging/scripts/preremove.sh
+      postremove: packaging/scripts/postremove.sh
 
 # Release notes are written by hand in the GitHub UI before publishing the draft
 changelog:

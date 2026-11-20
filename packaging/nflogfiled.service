@@ -1,0 +1,45 @@
+[Unit]
+Description=Write nftables/nflog logs to files
+Documentation=https://github.com/bluekeyes/nflogfiled
+
+[Service]
+Type=exec
+User=nflogfiled
+Group=nflogfiled
+ExecStart=/usr/bin/nflogfiled @/etc/nflogfiled/flags
+ExecReload=kill -HUP $MAINPID
+Restart=on-failure
+
+LogsDirectory=nflog
+LogsDirectoryMode=0750
+
+# nflog requires CAP_NET_ADMIN to bind to groups
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=yes
+
+# Output files may be written anywhere except /usr, /boot, /etc, home
+# directories, and /tmp (which is private to the service)
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+# Allow AF_INET/AF_INET6 for Prometheus metrics
+RestrictAddressFamilies=AF_NETLINK AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
