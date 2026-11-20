@@ -64,12 +64,21 @@ func main() {
 	fs.BoolVar(&printVersion, "v", false, "version")
 	fs.BoolVar(&printVersion, "version", false, "version")
 
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	args, err := cli.ExpandArgs(os.Args[1:])
+	if err != nil {
+		die(err)
+	}
+
+	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			fmt.Fprintln(os.Stdout, helpText())
 			os.Exit(0)
 		}
 		die(err)
+	}
+
+	if fs.NArg() > 0 {
+		die(fmt.Errorf("unexpected argument: %q", fs.Arg(0)))
 	}
 
 	if printVersion {
@@ -79,7 +88,7 @@ func main() {
 
 	configureLogging(opts)
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	pipelineOpts, err := pipelineOptionsFromFlags(opts)
@@ -192,7 +201,7 @@ func helpText() string {
 	defaultFields = cli.IndentText(cli.WrapText(defaultFields, 54), 27, false)
 
 	help := `
-Usage: nflogfiled [options]
+Usage: nflogfiled [options] [@file ...]
 
   Run the nflogfiled daemon.
 
@@ -263,6 +272,16 @@ Tuning Options:
                                   userspace. Increasing this may improve perforance
                                   while also increasing output latency. The default
                                   value is ` + defaultFlushCount + `.
+
+Flag Files:
+
+  A positional argument that starts with '@' indicates a flag file. The remainder
+  of the argument gives a path to a file containing one flag per line. After
+  removing empty lines and lines that start with '#', the remaining lines take the
+  place of the flag file argument in the command.
+
+  Flags that take values must use the '-flag=value' form and a flag file cannot
+  include other flag files.
 
 Fields:
 
