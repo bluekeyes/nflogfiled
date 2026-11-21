@@ -24,7 +24,7 @@ func benchMessage() Message {
 func BenchmarkJSONFormatter(b *testing.B) {
 	msg := benchMessage()
 	buf := make([]byte, 0, 256)
-	fmt := JSONFormatter{}
+	fmt := NewJSONFormatter()
 
 	b.ResetTimer()
 	for b.Loop() {
@@ -36,7 +36,7 @@ func BenchmarkJSONFormatter(b *testing.B) {
 func BenchmarkTextFormatter(b *testing.B) {
 	msg := benchMessage()
 	buf := make([]byte, 0, 256)
-	fmt := TextFormatter{}
+	fmt := NewTextFormatter()
 
 	b.ResetTimer()
 	for b.Loop() {

@@ -84,8 +84,8 @@ func FuzzMessageRoundtrip(f *testing.F) {
 func roundtripCases(ctx context.Context, cases []testgen.Case, fieldSet message.FieldSet) []error {
 	var errs []error
 
-	textLines := runPipeline(ctx, cases, &message.TextFormatter{Fields: fieldSet})
-	jsonLines := runPipeline(ctx, cases, &message.JSONFormatter{Fields: fieldSet})
+	textLines := runPipeline(ctx, cases, message.NewTextFormatter(message.WithFields(fieldSet)))
+	jsonLines := runPipeline(ctx, cases, message.NewJSONFormatter(message.WithFields(fieldSet)))
 
 	textObs := make([]testgen.Observation, len(textLines))
 	for i, line := range textLines {

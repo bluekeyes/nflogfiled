@@ -230,9 +230,9 @@ func TestDaemonOutputContinuesDuringRenameReload(t *testing.T) {
 			},
 		},
 		Pipeline: daemon.PipelineOptions{
-			Format: &message.TextFormatter{
-				Fields: daemon.DefaultFieldSet,
-			},
+			Format: message.NewTextFormatter(
+				message.WithFields(daemon.DefaultFieldSet),
+			),
 			ChannelBufferSize: messageCount,
 			ConnectFunc:       mockLog.Connect,
 			OpenFunc: func(path string, mode os.FileMode) (io.WriteCloser, error) {
@@ -383,9 +383,9 @@ func runDaemonTest(t *testing.T, scenario Scenario) {
 				},
 			},
 			Pipeline: daemon.PipelineOptions{
-				Format: &message.TextFormatter{
-					Fields: daemon.DefaultFieldSet,
-				},
+				Format: message.NewTextFormatter(
+					message.WithFields(daemon.DefaultFieldSet),
+				),
 				// A dropped message always fails the test, so make sure the buffer can hold all of the messages
 				ChannelBufferSize: scenario.TotalMessages(),
 				ConnectFunc:       mockLog.Connect,

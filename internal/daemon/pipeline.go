@@ -96,7 +96,7 @@ type OpenFunc func(string, os.FileMode) (io.WriteCloser, error)
 
 func setDefaultOptionsIfMissing(opts *PipelineOptions) {
 	if opts.Format == nil {
-		opts.Format = &message.TextFormatter{Fields: DefaultFieldSet}
+		opts.Format = message.NewTextFormatter(message.WithFields(DefaultFieldSet))
 	}
 	if opts.FileMode == 0 {
 		opts.FileMode = DefaultFileMode

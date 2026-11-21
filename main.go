@@ -144,11 +144,15 @@ func pipelineOptionsFromFlags(opts Options) (daemon.PipelineOptions, error) {
 			fieldSet = message.AllFields
 		}
 
+		fmtOpts := []message.FormatOption{
+			message.WithFields(fieldSet),
+		}
+
 		switch opts.Format {
 		case "json":
-			p.Format = &message.JSONFormatter{Fields: fieldSet}
+			p.Format = message.NewJSONFormatter(fmtOpts...)
 		case "text", "":
-			p.Format = &message.JSONFormatter{Fields: fieldSet}
+			p.Format = message.NewTextFormatter(fmtOpts...)
 		default:
 			return p, fmt.Errorf("unknown output format: %q", opts.Format)
 		}

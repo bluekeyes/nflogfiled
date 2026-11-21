@@ -7,6 +7,19 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+type FormatOption func(*formatOptions)
+
+// WithFields sets the output fields for a formatter.
+func WithFields(fields FieldSet) FormatOption {
+	return func(opts *formatOptions) {
+		opts.fields = fields
+	}
+}
+
+type formatOptions struct {
+	fields FieldSet
+}
+
 func formatMessage(w writer, msg Message, fields FieldSet) {
 	output := func(f FieldSet) bool {
 		return msg.Fields.Has(f) && fields.Has(f)

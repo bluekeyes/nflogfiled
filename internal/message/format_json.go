@@ -8,7 +8,7 @@ import (
 )
 
 type JSONFormatter struct {
-	Fields FieldSet
+	formatOptions
 
 	// This is a shared field to avoid allocation on each Format call. The use
 	// of the 'writer' interface by 'formatMessage' otherwise causes a local
@@ -16,9 +16,19 @@ type JSONFormatter struct {
 	w jsonWriter
 }
 
+func NewJSONFormatter(opts ...FormatOption) *JSONFormatter {
+	jf := JSONFormatter{
+		fields: AllFields,
+	}
+	for _, opt := range opts {
+		opt(&jf.formatOptions)
+	}
+	return &jf
+}
+
 func (jf *JSONFormatter) Format(b []byte, msg Message) []byte {
 	jf.w.Reset(b)
-	formatMessage(&jf.w, msg, jf.Fields)
+	formatMessage(&jf.w, msg, jf.fields)
 	return jf.w.b
 }
 

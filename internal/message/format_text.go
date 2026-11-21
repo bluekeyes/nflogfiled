@@ -7,7 +7,7 @@ import (
 )
 
 type TextFormatter struct {
-	Fields FieldSet
+	formatOptions
 
 	// This is a shared field to avoid allocation on each Format call. The use
 	// of the 'writer' interface by 'formatMessage' otherwise causes a local
@@ -15,9 +15,19 @@ type TextFormatter struct {
 	w textWriter
 }
 
+func NewTextFormatter(opts ...FormatOption) *TextFormatter {
+	tf := TextFormatter{
+		fields: AllFields,
+	}
+	for _, opt := range opts {
+		opt(&tf.formatOptions)
+	}
+	return &tf
+}
+
 func (tf *TextFormatter) Format(b []byte, msg Message) []byte {
 	tf.w.Reset(b)
-	formatMessage(&tf.w, msg, tf.Fields)
+	formatMessage(&tf.w, msg, tf.fields)
 	return tf.w.b
 }
 
