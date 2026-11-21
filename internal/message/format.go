@@ -2,6 +2,7 @@ package message
 
 import (
 	"net/netip"
+	"strconv"
 	"time"
 
 	"github.com/google/gopacket/layers"
@@ -16,11 +17,20 @@ func WithFields(fields FieldSet) FormatOption {
 	}
 }
 
-type formatOptions struct {
-	fields FieldSet
+func WithDeviceNames(namer DeviceNamer) FormatOption {
+	return func(opts *formatOptions) {
+		opts.namer = namer
+	}
 }
 
-func formatMessage(w writer, msg Message, fields FieldSet) {
+type formatOptions struct {
+	fields FieldSet
+	namer  DeviceNamer
+}
+
+func formatMessage(w writer, msg Message, opts formatOptions) {
+	fields := opts.fields
+
 	output := func(f FieldSet) bool {
 		return msg.Fields.Has(f) && fields.Has(f)
 	}
@@ -46,6 +56,18 @@ func formatMessage(w writer, msg Message, fields FieldSet) {
 	}
 	if output(FieldGID) {
 		w.UintField("gid", uint64(msg.GID))
+	}
+	if output(FieldInDevice) {
+		w.StringField("in_dev", formatDevice(opts.namer, int(msg.InDevice)))
+	}
+	if output(FieldPhysicalInDevice) {
+		w.StringField("physical_in_dev", formatDevice(opts.namer, int(msg.PhysicalInDevice)))
+	}
+	if output(FieldOutDevice) {
+		w.StringField("out_dev", formatDevice(opts.namer, int(msg.OutDevice)))
+	}
+	if output(FieldPhysicalOutDevice) {
+		w.StringField("physical_out_dev", formatDevice(opts.namer, int(msg.PhysicalOutDevice)))
 	}
 	if output(FieldVLANIdentifier) {
 		w.UintField("vlan_id", uint64(msg.VLANIdentifier))
@@ -102,6 +124,17 @@ func formatMessage(w writer, msg Message, fields FieldSet) {
 	}
 
 	w.Close()
+}
+
+func formatDevice(n DeviceNamer, index int) string {
+	if n != nil {
+		if name, ok := n.DeviceName(index); ok {
+			return name
+		}
+	}
+	// For consistency when parsing, always format devices as strings
+	return strconv.Itoa(index)
+
 }
 
 type writer interface {

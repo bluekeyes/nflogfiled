@@ -27,7 +27,7 @@ func NewTextFormatter(opts ...FormatOption) *TextFormatter {
 
 func (tf *TextFormatter) Format(b []byte, msg Message) []byte {
 	tf.w.Reset(b)
-	formatMessage(&tf.w, msg, tf.fields)
+	formatMessage(&tf.w, msg, tf.formatOptions)
 	return tf.w.b
 }
 

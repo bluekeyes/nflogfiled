@@ -28,7 +28,7 @@ func NewJSONFormatter(opts ...FormatOption) *JSONFormatter {
 
 func (jf *JSONFormatter) Format(b []byte, msg Message) []byte {
 	jf.w.Reset(b)
-	formatMessage(&jf.w, msg, jf.fields)
+	formatMessage(&jf.w, msg, jf.formatOptions)
 	return jf.w.b
 }
 

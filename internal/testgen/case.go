@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -132,6 +133,7 @@ var tcpFlagOptions = []struct {
 type generateOpts struct {
 	mask   message.FieldSet
 	groups []groups.Group
+	namer  message.DeviceNamer
 }
 
 type GenerateOption func(*generateOpts)
@@ -145,6 +147,12 @@ func WithGroups(gs ...groups.Group) GenerateOption {
 func WithMask(fs message.FieldSet) GenerateOption {
 	return func(opts *generateOpts) {
 		opts.mask = fs
+	}
+}
+
+func WithDeviceNames(namer message.DeviceNamer) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.namer = namer
 	}
 }
 
@@ -186,14 +194,31 @@ func Generate(v *Values, options ...GenerateOption) Case {
 		attr.Mark, want.Mark = &mark, &mark
 	}
 
+	var namer message.DeviceNamer
+	if opts.namer != nil {
+		namer = opts.namer
+	} else {
+		namer = defaultDeviceNamer{}
+	}
+
 	inDev, outDev := v.Uint32(), v.Uint32()
 	attr.InDev = &inDev
 	attr.OutDev = &outDev
+
+	inName, _ := namer.DeviceName(int(inDev))
+	outName, _ := namer.DeviceName(int(outDev))
+	want.InDev = &inName
+	want.OutDev = &outName
 
 	if v.Bool() {
 		physInDev, physOutDev := v.Uint32(), v.Uint32()
 		attr.PhysInDev = &physInDev
 		attr.PhysOutDev = &physOutDev
+
+		physInName, _ := namer.DeviceName(int(physInDev))
+		physOutName, _ := namer.DeviceName(int(physOutDev))
+		want.PhysInDev = &physInName
+		want.PhysOutDev = &physOutName
 	}
 
 	if v.Bool() {
@@ -389,4 +414,10 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 	case *layers.IPv6:
 		want.Length = new(ip.Length)
 	}
+}
+
+type defaultDeviceNamer struct{}
+
+func (dn defaultDeviceNamer) DeviceName(index int) (string, bool) {
+	return strconv.Itoa(index), true
 }

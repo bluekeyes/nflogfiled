@@ -21,27 +21,31 @@ import (
 // Observation contains the data observed in an output log line. A nil field
 // indicates that the field was not present in the log.
 type Observation struct {
-	Timestamp *time.Time
-	Group     *groups.Group
-	Hook      *uint8
-	Mark      *uint32
-	Prefix    *string
-	UID       *uint32
-	GID       *uint32
-	VLANID    *uint16
-	Protocol  *uint8
-	SrcIP     *netip.Addr
-	SrcPort   *uint16
-	SrcMAC    *net.HardwareAddr
-	DstIP     *netip.Addr
-	DstPort   *uint16
-	DstMAC    *net.HardwareAddr
-	TTL       *uint8
-	Length    *uint16
-	TCPAck    *uint32
-	TCPSeq    *uint32
-	TCPFlags  *string
-	TCPWindow *uint16
+	Timestamp  *time.Time
+	Group      *groups.Group
+	Hook       *uint8
+	Mark       *uint32
+	Prefix     *string
+	UID        *uint32
+	GID        *uint32
+	InDev      *string
+	PhysInDev  *string
+	OutDev     *string
+	PhysOutDev *string
+	VLANID     *uint16
+	Protocol   *uint8
+	SrcIP      *netip.Addr
+	SrcPort    *uint16
+	SrcMAC     *net.HardwareAddr
+	DstIP      *netip.Addr
+	DstPort    *uint16
+	DstMAC     *net.HardwareAddr
+	TTL        *uint8
+	Length     *uint16
+	TCPAck     *uint32
+	TCPSeq     *uint32
+	TCPFlags   *string
+	TCPWindow  *uint16
 }
 
 // Mask returns a copy of the Observation that contains the intersection of the
@@ -69,6 +73,18 @@ func (o Observation) Mask(fs message.FieldSet) Observation {
 	}
 	if fs.Has(message.FieldGID) {
 		obs.GID = o.GID
+	}
+	if fs.Has(message.FieldInDevice) {
+		obs.InDev = o.InDev
+	}
+	if fs.Has(message.FieldPhysicalInDevice) {
+		obs.PhysInDev = o.PhysInDev
+	}
+	if fs.Has(message.FieldOutDevice) {
+		obs.OutDev = o.OutDev
+	}
+	if fs.Has(message.FieldPhysicalOutDevice) {
+		obs.PhysOutDev = o.PhysOutDev
 	}
 	if fs.Has(message.FieldVLANIdentifier) {
 		obs.VLANID = o.VLANID
@@ -255,6 +271,18 @@ func setField(o *Observation, name, value string) error {
 			return fmt.Errorf("field gid: %w", err)
 		}
 		o.GID = new(uint32(v))
+
+	case "in_dev":
+		o.InDev = &value
+
+	case "physical_in_dev":
+		o.PhysInDev = &value
+
+	case "out_dev":
+		o.OutDev = &value
+
+	case "physical_out_dev":
+		o.PhysOutDev = &value
 
 	case "vlan_id":
 		v, err := strconv.ParseUint(value, 10, 16)
