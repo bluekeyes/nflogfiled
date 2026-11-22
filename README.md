@@ -11,6 +11,7 @@ doesn't provide a `ulogd` package.
 * Map nflog groups to different files or standard out
 * Format logs as text or JSON
 * Reopen files on signal for integration with `logrotate`
+* Optional Prometheus metrics endpoint
 * Single static Go binary
 
 ## Installation

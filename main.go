@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"math"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -17,6 +20,7 @@ import (
 	"github.com/bluekeyes/nflogfiled/internal/cli"
 	"github.com/bluekeyes/nflogfiled/internal/daemon"
 	"github.com/bluekeyes/nflogfiled/internal/message"
+	"github.com/bluekeyes/nflogfiled/internal/metrics"
 )
 
 var (
@@ -37,7 +41,15 @@ type Options struct {
 	KernelFlushCount     uint64
 
 	DeviceNameTTL time.Duration
+
+	MetricsAddress string
+	MetricsPath    string
 }
+
+const (
+	DefaultMetricsPath     = "/metrics"
+	MetricsShutdownTimeout = 5 * time.Second
+)
 
 func die(err error) {
 	fmt.Fprintln(os.Stderr, "error:", err)
@@ -63,6 +75,9 @@ func main() {
 	fs.Uint64Var(&opts.KernelFlushCount, "kernel-flush-count", 0, "")
 
 	fs.DurationVar(&opts.DeviceNameTTL, "device-name-ttl", 0, "")
+
+	fs.StringVar(&opts.MetricsAddress, "metrics-address", "", "")
+	fs.StringVar(&opts.MetricsPath, "metrics-path", "", "")
 
 	var printVersion bool
 	fs.BoolVar(&printVersion, "v", false, "version")
@@ -100,6 +115,17 @@ func main() {
 		die(fmt.Errorf("invalid option: %w", err))
 	}
 
+	if opts.MetricsAddress != "" {
+		m := metrics.New(version)
+		pipelineOpts.Metrics = m
+
+		stop, err := startMetricsServer(ctx, opts, m)
+		if err != nil {
+			die(err)
+		}
+		defer stop()
+	}
+
 	d, err := daemon.NewDaemon(daemon.Config{
 		Mappings: opts.Mapping.Values,
 		Pipeline: pipelineOpts,
@@ -127,6 +153,48 @@ func main() {
 	}
 }
 
+// startMetricsServer starts the Prometheus HTTP server in the background and
+// returns a function that gracefully stops the server. The stop function
+// blocks until all requests are complete.
+func startMetricsServer(ctx context.Context, opts Options, m *metrics.Metrics) (stop func(), err error) {
+	path := opts.MetricsPath
+	if path == "" {
+		path = DefaultMetricsPath
+	}
+	if !strings.HasPrefix(path, "/") {
+		return nil, fmt.Errorf("invalid option: metrics path must start with '/': %q", path)
+	}
+
+	l, err := net.Listen("tcp", opts.MetricsAddress)
+	if err != nil {
+		return nil, fmt.Errorf("metrics server failed to listen: %w", err)
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle(path, m.Handler())
+
+	srv := &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+	}
+
+	slog.InfoContext(ctx, "serving metrics", "address", l.Addr().String(), "path", path)
+	go func() {
+		if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.ErrorContext(ctx, "metrics server failed", "error", err)
+		}
+	}()
+
+	return func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), MetricsShutdownTimeout)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			slog.Warn("error stopping metrics server", "error", err)
+		}
+	}, nil
+}
+
 func configureLogging(opts Options) {
 	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: opts.LogLevel.Value,
@@ -151,9 +219,10 @@ func pipelineOptionsFromFlags(ctx context.Context, opts Options) (daemon.Pipelin
 		deviceNameTTL = opts.DeviceNameTTL
 	}
 
+	p.DeviceNamer = message.NewListingDeviceNamer(ctx, deviceNameTTL)
+
 	fmtOpts := []message.FormatOption{
 		message.WithFields(fieldSet),
-		message.WithDeviceNames(message.NewListingDeviceNamer(ctx, deviceNameTTL)),
 	}
 
 	switch opts.Format {
@@ -288,6 +357,17 @@ Tuning Options:
   -device-name-ttl=duration       Sets approximate time the daemon caches device
                                   index to name mappings. The default value is ` + defaultDeviceNameTTL + `.
 
+Metrics Options:
+
+  -metrics-address=addr  Enables a Prometheus metrics endpoint that listens on the
+                         given address in 'host:port' form, e.g. '127.0.0.1:9880'.
+                         Metrics are disabled by default. The endpoint uses plain
+                         HTTP without authentication, so bind it to a trusted
+                         address.
+
+  -metrics-path=path     Sets the HTTP path of the metrics endpoint. The default
+                         path is '` + DefaultMetricsPath + `'.
+
 Flag Files:
 
   A positional argument that starts with '@' indicates a flag file. The remainder
@@ -309,10 +389,10 @@ Fields:
     prefix               prefix string set by the nflog rule
     uid                  user ID of the associated local socket
     gid                  group ID of the associated local socket
-    in_device            input interface index
-    physical_in_device   physical input interface index
-    out_device           output interface index
-    physical_out_device  physical output interface index
+    in_device            input interface name or index
+    physical_in_device   physical input interface name or index
+    out_device           output interface name or index
+    physical_out_device  physical output interface name or index
     vlan_protocol        VLAN tag protocol (EtherType)
     vlan_identifier      numeric VLAN ID
 

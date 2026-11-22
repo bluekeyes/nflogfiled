@@ -34,16 +34,15 @@ func NewWriter(dst io.WriteCloser, fmt Formatter) *Writer {
 }
 
 // Write writes a single message to destination.
-func (w *Writer) Write(msg message.Message) {
+func (w *Writer) Write(msg message.Message) error {
 	if w.dst == nil {
-		return
+		return nil
 	}
 
 	w.buf = w.fmt.Format(w.buf, msg)
-	if _, err := w.dst.Write(w.buf); err != nil {
-		slog.Error("error writing message", "error", err)
-	}
+	_, err := w.dst.Write(w.buf)
 	w.buf = w.buf[:0]
+	return err
 }
 
 // Reset closes the existing destination and replaces it with a new one. Pass a

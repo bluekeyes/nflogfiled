@@ -33,9 +33,17 @@ func TestRandomMessageRoundtrip(t *testing.T) {
 			fieldSet = message.FieldSet(v.Uint64())
 		}
 
-		cases := testgen.GenerateBatch(v, 1+v.IntN(8), testgen.WithMask(fieldSet))
+		genOpts := []testgen.GenerateOption{testgen.WithMask(fieldSet)}
 
-		if errs := roundtripCases(t.Context(), cases, fieldSet); len(errs) > 0 {
+		var namer message.DeviceNamer
+		if v.Bool() {
+			namer = testDeviceNamer{}
+			genOpts = append(genOpts, testgen.WithDeviceNames(namer))
+		}
+
+		cases := testgen.GenerateBatch(v, 1+v.IntN(8), genOpts...)
+
+		if errs := roundtripCases(t.Context(), fieldSet, namer, cases); len(errs) > 0 {
 			var casesStr strings.Builder
 			for i, c := range cases {
 				fmt.Fprintf(&casesStr, "%d: %s\n", i, c)
@@ -64,9 +72,17 @@ func FuzzMessageRoundtrip(f *testing.F) {
 			fieldSet = message.FieldSet(v.Uint64())
 		}
 
-		cases := testgen.GenerateBatch(v, 1+v.IntN(4), testgen.WithMask(fieldSet))
+		genOpts := []testgen.GenerateOption{testgen.WithMask(fieldSet)}
 
-		if errs := roundtripCases(t.Context(), cases, fieldSet); len(errs) > 0 {
+		var namer message.DeviceNamer
+		if v.Bool() {
+			namer = testDeviceNamer{}
+			genOpts = append(genOpts, testgen.WithDeviceNames(namer))
+		}
+
+		cases := testgen.GenerateBatch(v, 1+v.IntN(4), genOpts...)
+
+		if errs := roundtripCases(t.Context(), fieldSet, namer, cases); len(errs) > 0 {
 			var casesStr strings.Builder
 			for i, c := range cases {
 				fmt.Fprintf(&casesStr, "%d: %s\n", i, c)
@@ -81,11 +97,14 @@ func FuzzMessageRoundtrip(f *testing.F) {
 	})
 }
 
-func roundtripCases(ctx context.Context, cases []testgen.Case, fieldSet message.FieldSet) []error {
+func roundtripCases(ctx context.Context, fieldSet message.FieldSet, namer message.DeviceNamer, cases []testgen.Case) []error {
 	var errs []error
 
-	textLines := runPipeline(ctx, cases, message.NewTextFormatter(message.WithFields(fieldSet)))
-	jsonLines := runPipeline(ctx, cases, message.NewJSONFormatter(message.WithFields(fieldSet)))
+	textFmt := message.NewTextFormatter(message.WithFields(fieldSet))
+	textLines := runPipeline(ctx, textFmt, namer, cases)
+
+	jsonFmt := message.NewJSONFormatter(message.WithFields(fieldSet))
+	jsonLines := runPipeline(ctx, jsonFmt, namer, cases)
 
 	textObs := make([]testgen.Observation, len(textLines))
 	for i, line := range textLines {
@@ -128,7 +147,7 @@ func roundtripCases(ctx context.Context, cases []testgen.Case, fieldSet message.
 	return errs
 }
 
-func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter) []string {
+func runPipeline(ctx context.Context, f logfile.Formatter, namer message.DeviceNamer, cases []testgen.Case) []string {
 	msgs := make(chan message.Message, len(cases))
 	done := make(chan struct{})
 
@@ -137,7 +156,7 @@ func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter)
 	go func() {
 		w := logfile.NewWriter(dst, f)
 		for msg := range msgs {
-			w.Write(msg)
+			_ = w.Write(msg)
 		}
 
 		dst.Close()
@@ -152,7 +171,10 @@ func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter)
 	hooks := make(map[groups.Group]nflog.HookFunc)
 	for _, c := range cases {
 		if _, exists := hooks[c.Group]; !exists {
-			hooks[c.Group] = daemon.NflogHook(ctx, c.Group, msgs, now)
+			hooks[c.Group] = daemon.NflogHook(ctx, c.Group, msgs, daemon.PipelineOptions{
+				NowFunc:     now,
+				DeviceNamer: namer,
+			})
 		}
 	}
 
@@ -167,6 +189,21 @@ func runPipeline(ctx context.Context, cases []testgen.Case, f logfile.Formatter)
 	<-done
 
 	return dst.Lines()
+}
+
+// testDeviceNamer names some devices, returns empty names for some existing
+// devices, and reports the rest as missing.
+type testDeviceNamer struct{}
+
+func (testDeviceNamer) DeviceName(index int) (string, bool) {
+	switch index % 3 {
+	case 0:
+		return "dev" + strconv.Itoa(index), true
+	case 1:
+		return "", true
+	default:
+		return "", false
+	}
 }
 
 // defaultTestSeed is an arbitrary seed that makes generated tests

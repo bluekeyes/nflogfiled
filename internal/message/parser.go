@@ -14,6 +14,8 @@ import (
 )
 
 type Parser struct {
+	namer DeviceNamer
+
 	ethBuf layers.Ethernet
 	ip4Buf layers.IPv4
 	ip6Buf layers.IPv6
@@ -26,8 +28,11 @@ type Parser struct {
 	decoded   []gopacket.LayerType
 }
 
-func NewParser() *Parser {
+// NewParser creates a parser that resolves device names with namer. If namer
+// is nil, the parser does not set device names.
+func NewParser(namer DeviceNamer) *Parser {
 	p := Parser{
+		namer:   namer,
 		decoded: []gopacket.LayerType{},
 	}
 
@@ -73,6 +78,13 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 
 	setIfNotNil(&msg, &msg.OutDevice, attr.OutDev, FieldOutDevice)
 	setIfNotNil(&msg, &msg.PhysicalOutDevice, attr.PhysOutDev, FieldPhysicalOutDevice)
+
+	if p.namer != nil {
+		msg.InDeviceName = p.deviceName(attr.InDev)
+		msg.PhysicalInDeviceName = p.deviceName(attr.PhysInDev)
+		msg.OutDeviceName = p.deviceName(attr.OutDev)
+		msg.PhysicalOutDeviceName = p.deviceName(attr.PhysOutDev)
+	}
 
 	if attr.VLAN != nil {
 		msg.VLANProtocol = attr.VLAN.Proto
@@ -148,6 +160,14 @@ func (p *Parser) FromAttribute(group groups.Group, receivedAt time.Time, attr *n
 	}
 
 	return msg, nil
+}
+
+func (p *Parser) deviceName(index *uint32) string {
+	if index == nil {
+		return ""
+	}
+	name, _ := p.namer.DeviceName(int(*index))
+	return name
 }
 
 func setIfNotNil[T any](msg *Message, dst *T, src *T, f FieldSet) {

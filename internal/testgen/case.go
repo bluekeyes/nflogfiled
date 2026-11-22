@@ -205,8 +205,8 @@ func Generate(v *Values, options ...GenerateOption) Case {
 	attr.InDev = &inDev
 	attr.OutDev = &outDev
 
-	inName, _ := namer.DeviceName(int(inDev))
-	outName, _ := namer.DeviceName(int(outDev))
+	inName := deviceName(namer, inDev)
+	outName := deviceName(namer, outDev)
 	want.InDev = &inName
 	want.OutDev = &outName
 
@@ -215,8 +215,8 @@ func Generate(v *Values, options ...GenerateOption) Case {
 		attr.PhysInDev = &physInDev
 		attr.PhysOutDev = &physOutDev
 
-		physInName, _ := namer.DeviceName(int(physInDev))
-		physOutName, _ := namer.DeviceName(int(physOutDev))
+		physInName := deviceName(namer, physInDev)
+		physOutName := deviceName(namer, physOutDev)
 		want.PhysInDev = &physInName
 		want.PhysOutDev = &physOutName
 	}
@@ -414,6 +414,11 @@ func generatePacket(v *Values, attr *nflog.Attribute, want *Observation) {
 	case *layers.IPv6:
 		want.Length = new(ip.Length)
 	}
+}
+
+func deviceName(namer message.DeviceNamer, index uint32) string {
+	name, _ := namer.DeviceName(int(index))
+	return message.FormatDevice(name, index)
 }
 
 type defaultDeviceNamer struct{}

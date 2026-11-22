@@ -13,6 +13,7 @@ import (
 	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/bluekeyes/nflogfiled/internal/logfile"
 	"github.com/bluekeyes/nflogfiled/internal/message"
+	"github.com/bluekeyes/nflogfiled/internal/metrics"
 	"github.com/florianl/go-nflog/v2"
 )
 
@@ -64,17 +65,21 @@ type Pipeline struct {
 	fileName string
 	fileMode fs.FileMode
 	openFunc OpenFunc
+	metrics  *metrics.Metrics
 }
 
 type PipelineOptions struct {
-	Format   logfile.Formatter
-	FileMode fs.FileMode
+	Format      logfile.Formatter
+	DeviceNamer message.DeviceNamer
+	FileMode    fs.FileMode
 
 	ChannelBufferSize    int
 	PacketBufferSize     uint32
 	KernelReadBufferSize int
 	KernelFlushTimeout   time.Duration
 	KernelFlushCount     uint32
+
+	Metrics *metrics.Metrics
 
 	// Options to modify pipeline behavior for testing. If nil, all use
 	// appropriate default functions.
@@ -150,6 +155,7 @@ func StartPipeline(mapping groups.Mapping, opts PipelineOptions) (*Pipeline, err
 		fileName: mapping.File,
 		fileMode: opts.FileMode,
 		openFunc: opts.OpenFunc,
+		metrics:  opts.Metrics,
 	}
 
 	dst, err := p.openDestination()
@@ -159,8 +165,8 @@ func StartPipeline(mapping groups.Mapping, opts PipelineOptions) (*Pipeline, err
 	p.w = logfile.NewWriter(dst, opts.Format)
 
 	for i, g := range mapping.Groups {
-		hook := NflogHook(ctx, g, msgs, opts.NowFunc)
-		errFunc := NflogErrorFunc(ctx)
+		hook := NflogHook(ctx, g, msgs, opts)
+		errFunc := NflogErrorFunc(ctx, g, opts.Metrics)
 
 		var err error
 		p.conns[i], err = opts.ConnectFunc(ctx, g, hook, errFunc, opts)
@@ -170,6 +176,8 @@ func StartPipeline(mapping groups.Mapping, opts PipelineOptions) (*Pipeline, err
 			return nil, err
 		}
 	}
+
+	opts.Metrics.RegisterQueue(mapping.File, msgs)
 
 	go p.writeForever()
 
@@ -226,7 +234,7 @@ func (p *Pipeline) writeForever() {
 	for {
 		select {
 		case msg := <-p.msgs:
-			p.w.Write(msg)
+			p.write(msg)
 		case dst := <-p.dstChan:
 			p.w.Reset(dst)
 		case <-p.ctx.Done():
@@ -239,7 +247,7 @@ func (p *Pipeline) drain(ctx context.Context) {
 	for {
 		select {
 		case msg := <-p.msgs:
-			p.w.Write(msg)
+			p.write(msg)
 		default:
 			return
 		case <-ctx.Done():
@@ -247,6 +255,15 @@ func (p *Pipeline) drain(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func (p *Pipeline) write(msg message.Message) {
+	start := time.Now()
+	err := p.w.Write(msg)
+	if err != nil {
+		slog.Error("error writing message", "error", err)
+	}
+	p.metrics.MessageWritten(p.fileName, msg, start, err)
 }
 
 func (p *Pipeline) closeConns() {

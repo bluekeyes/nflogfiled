@@ -66,11 +66,14 @@ func (d *Daemon) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-d.reload:
+			var reloadErr error
 			for _, p := range pipelines {
 				if err := p.ReloadFile(); err != nil {
 					slog.ErrorContext(ctx, "error reloading file", "error", err)
+					reloadErr = err
 				}
 			}
+			d.pipelineOpts.Metrics.Reloaded(reloadErr)
 
 		case <-ctx.Done():
 			stopPipelines(pipelines, d.drainTimeout)

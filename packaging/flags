@@ -18,3 +18,7 @@
 
 # Set the fields included in each message.
 #-fields=received_at,prefix,in_device,out_device,packet_src_ip,packet_src_port,packet_dst_ip,packet_dst_port,packet_protocol
+
+# Serve Prometheus metrics over plain HTTP at the given address. Metrics are
+# disabled unless this is set.
+#-metrics-address=127.0.0.1:9880

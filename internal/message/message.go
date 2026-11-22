@@ -22,11 +22,15 @@ type Message struct {
 	UID uint32
 	GID uint32
 
-	InDevice         uint32
-	PhysicalInDevice uint32
+	InDevice             uint32
+	InDeviceName         string
+	PhysicalInDevice     uint32
+	PhysicalInDeviceName string
 
-	OutDevice         uint32
-	PhysicalOutDevice uint32
+	OutDevice             uint32
+	OutDeviceName         string
+	PhysicalOutDevice     uint32
+	PhysicalOutDeviceName string
 
 	VLANProtocol   uint16
 	VLANIdentifier uint16

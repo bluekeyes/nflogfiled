@@ -17,15 +17,8 @@ func WithFields(fields FieldSet) FormatOption {
 	}
 }
 
-func WithDeviceNames(namer DeviceNamer) FormatOption {
-	return func(opts *formatOptions) {
-		opts.namer = namer
-	}
-}
-
 type formatOptions struct {
 	fields FieldSet
-	namer  DeviceNamer
 }
 
 func formatMessage(w writer, msg Message, opts formatOptions) {
@@ -58,33 +51,22 @@ func formatMessage(w writer, msg Message, opts formatOptions) {
 		w.UintField("gid", uint64(msg.GID))
 	}
 	if output(FieldInDevice) {
-		w.StringField("in_dev", formatDevice(opts.namer, int(msg.InDevice)))
+		w.StringField("in_dev", FormatDevice(msg.InDeviceName, msg.InDevice))
 	}
 	if output(FieldPhysicalInDevice) {
-		w.StringField("physical_in_dev", formatDevice(opts.namer, int(msg.PhysicalInDevice)))
+		w.StringField("physical_in_dev", FormatDevice(msg.PhysicalInDeviceName, msg.PhysicalInDevice))
 	}
 	if output(FieldOutDevice) {
-		w.StringField("out_dev", formatDevice(opts.namer, int(msg.OutDevice)))
+		w.StringField("out_dev", FormatDevice(msg.OutDeviceName, msg.OutDevice))
 	}
 	if output(FieldPhysicalOutDevice) {
-		w.StringField("physical_out_dev", formatDevice(opts.namer, int(msg.PhysicalOutDevice)))
+		w.StringField("physical_out_dev", FormatDevice(msg.PhysicalOutDeviceName, msg.PhysicalOutDevice))
 	}
 	if output(FieldVLANIdentifier) {
 		w.UintField("vlan_id", uint64(msg.VLANIdentifier))
 	}
 	if output(FieldPacketProtocol) {
-		switch msg.Packet.Protocol {
-		case layers.IPProtocolTCP:
-			w.StringField("protocol", "tcp")
-		case layers.IPProtocolUDP:
-			w.StringField("protocol", "udp")
-		case layers.IPProtocolICMPv4:
-			w.StringField("protocol", "icmpv4")
-		case layers.IPProtocolICMPv6:
-			w.StringField("protocol", "icmpv6")
-		default:
-			w.UintField("protocol", uint64(msg.Packet.Protocol))
-		}
+		w.StringField("protocol", FormatProtocol(msg.Packet.Protocol))
 	}
 	if output(FieldPacketSrcIP) {
 		w.AddrField("src_ip", msg.Packet.SrcIP)
@@ -126,17 +108,30 @@ func formatMessage(w writer, msg Message, opts formatOptions) {
 	w.Close()
 }
 
-func formatDevice(n DeviceNamer, index int) string {
-	if n != nil {
-		// Existing devices may have empty names. In this case, fall back to
-		// using the device number, the same as if the device didn't exist.
-		if name, _ := n.DeviceName(index); name != "" {
-			return name
-		}
+// FormatDevice returns the device name if it is not empty and the device
+// index as a string otherwise.
+func FormatDevice(name string, index uint32) string {
+	if name != "" {
+		return name
 	}
-	// For consistency when parsing, always format devices as strings
-	return strconv.Itoa(index)
+	return strconv.FormatUint(uint64(index), 10)
+}
 
+// FormatProtocol returns the name of common IP protocols or the protocol
+// number as a string otherwise.
+func FormatProtocol(p layers.IPProtocol) string {
+	switch p {
+	case layers.IPProtocolTCP:
+		return "tcp"
+	case layers.IPProtocolUDP:
+		return "udp"
+	case layers.IPProtocolICMPv4:
+		return "icmpv4"
+	case layers.IPProtocolICMPv6:
+		return "icmpv6"
+	default:
+		return strconv.FormatUint(uint64(p), 10)
+	}
 }
 
 type writer interface {
