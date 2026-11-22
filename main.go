@@ -35,6 +35,8 @@ type Options struct {
 	KernelReadBufferSize int
 	KernelFlushTimeout   time.Duration
 	KernelFlushCount     uint64
+
+	DeviceNameTTL time.Duration
 }
 
 func die(err error) {
@@ -59,6 +61,8 @@ func main() {
 	fs.IntVar(&opts.KernelReadBufferSize, "kernel-read-buffer-size", 0, "")
 	fs.DurationVar(&opts.KernelFlushTimeout, "kernel-flush-timeout", 0, "")
 	fs.Uint64Var(&opts.KernelFlushCount, "kernel-flush-count", 0, "")
+
+	fs.DurationVar(&opts.DeviceNameTTL, "device-name-ttl", 0, "")
 
 	var printVersion bool
 	fs.BoolVar(&printVersion, "v", false, "version")
@@ -91,7 +95,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	pipelineOpts, err := pipelineOptionsFromFlags(opts)
+	pipelineOpts, err := pipelineOptionsFromFlags(ctx, opts)
 	if err != nil {
 		die(fmt.Errorf("invalid option: %w", err))
 	}
@@ -134,28 +138,31 @@ func configureLogging(opts Options) {
 	slog.SetLogLoggerLevel(slog.LevelInfo)
 }
 
-func pipelineOptionsFromFlags(opts Options) (daemon.PipelineOptions, error) {
+func pipelineOptionsFromFlags(ctx context.Context, opts Options) (daemon.PipelineOptions, error) {
 	var p daemon.PipelineOptions
 
 	fieldSet := opts.Fields.Value
+	if fieldSet == message.NoFields {
+		fieldSet = message.AllFields
+	}
 
-	if opts.Format != "" || fieldSet != message.NoFields {
-		if fieldSet == message.NoFields {
-			fieldSet = message.AllFields
-		}
+	deviceNameTTL := daemon.DefaultDeviceNameTTL
+	if opts.DeviceNameTTL != 0 {
+		deviceNameTTL = opts.DeviceNameTTL
+	}
 
-		fmtOpts := []message.FormatOption{
-			message.WithFields(fieldSet),
-		}
+	fmtOpts := []message.FormatOption{
+		message.WithFields(fieldSet),
+		message.WithDeviceNames(message.NewListingDeviceNamer(ctx, deviceNameTTL)),
+	}
 
-		switch opts.Format {
-		case "json":
-			p.Format = message.NewJSONFormatter(fmtOpts...)
-		case "text", "":
-			p.Format = message.NewTextFormatter(fmtOpts...)
-		default:
-			return p, fmt.Errorf("unknown output format: %q", opts.Format)
-		}
+	switch opts.Format {
+	case "json":
+		p.Format = message.NewJSONFormatter(fmtOpts...)
+	case "text", "":
+		p.Format = message.NewTextFormatter(fmtOpts...)
+	default:
+		return p, fmt.Errorf("unknown output format: %q", opts.Format)
 	}
 
 	if opts.FileMode.Value != 0 {
@@ -198,6 +205,7 @@ func helpText() string {
 	defaultKernelReadBuf := strconv.Itoa(daemon.DefaultKernelReadBufferSize)
 	defaultFlushTimeout := daemon.DefaultKernelFlushTimeout.String()
 	defaultFlushCount := strconv.Itoa(daemon.DefaultKernelFlushCount)
+	defaultDeviceNameTTL := daemon.DefaultDeviceNameTTL.String()
 
 	// Wrap fields so that they meet the ~82 character limit when indented two
 	// spaces past the field description column.
@@ -276,6 +284,9 @@ Tuning Options:
                                   userspace. Increasing this may improve perforance
                                   while also increasing output latency. The default
                                   value is ` + defaultFlushCount + `.
+
+  -device-name-ttl=duration       Sets approximate time the daemon caches device
+                                  index to name mappings. The default value is ` + defaultDeviceNameTTL + `.
 
 Flag Files:
 

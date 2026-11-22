@@ -27,6 +27,7 @@ const (
 	DefaultKernelReadBufferSize = 2 * 1024 * 1024
 	DefaultKernelFlushTimeout   = time.Second
 	DefaultKernelFlushCount     = 10
+	DefaultDeviceNameTTL        = 5 * time.Minute
 )
 
 const (
