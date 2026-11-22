@@ -128,7 +128,9 @@ func formatMessage(w writer, msg Message, opts formatOptions) {
 
 func formatDevice(n DeviceNamer, index int) string {
 	if n != nil {
-		if name, ok := n.DeviceName(index); ok {
+		// Existing devices may have empty names. In this case, fall back to
+		// using the device number, the same as if the device didn't exist.
+		if name, _ := n.DeviceName(index); name != "" {
 			return name
 		}
 	}
