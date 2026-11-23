@@ -21,10 +21,7 @@ import (
 	"github.com/bluekeyes/nflogfiled/internal/daemon"
 	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/bluekeyes/nflogfiled/internal/metrics"
-)
-
-var (
-	version = "main"
+	"github.com/bluekeyes/nflogfiled/internal/version"
 )
 
 type Options struct {
@@ -101,7 +98,7 @@ func main() {
 	}
 
 	if printVersion {
-		fmt.Fprintln(os.Stdout, version)
+		fmt.Fprintln(os.Stdout, version.Version())
 		os.Exit(0)
 	}
 
@@ -116,7 +113,7 @@ func main() {
 	}
 
 	if opts.MetricsAddress != "" {
-		m := metrics.New(version)
+		m := metrics.New()
 		pipelineOpts.Metrics = m
 
 		stop, err := startMetricsServer(ctx, opts, m)

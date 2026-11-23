@@ -11,6 +11,7 @@ import (
 
 	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/bluekeyes/nflogfiled/internal/message"
+	"github.com/bluekeyes/nflogfiled/internal/version"
 )
 
 const namespace = "nflogfiled"
@@ -48,7 +49,7 @@ type Metrics struct {
 
 // New creates a Metrics with a new registry that also includes the standard
 // Go runtime and process collectors.
-func New(version string) *Metrics {
+func New() *Metrics {
 	m := Metrics{
 		received: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -109,7 +110,7 @@ func New(version string) *Metrics {
 		Namespace:   namespace,
 		Name:        "build_info",
 		Help:        "A metric with a constant value of 1 labeled by the nflogfiled version.",
-		ConstLabels: prometheus.Labels{"version": version},
+		ConstLabels: prometheus.Labels{"version": version.Version()},
 	})
 	buildInfo.Set(1)
 

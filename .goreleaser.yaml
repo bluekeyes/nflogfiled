@@ -4,6 +4,9 @@ builds:
   - main: .
     env:
       - CGO_ENABLED=0
+    ldflags:
+      # Intentionally keep debug info by omitting GoReleaser's default `-s -w`
+      - -X github.com/bluekeyes/nflogfiled/internal/version.version={{ .Version }}
     goos:
       - linux
     goarch:
