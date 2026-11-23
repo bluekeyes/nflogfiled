@@ -7,10 +7,11 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/florianl/go-nflog/v2"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+
+	"github.com/bluekeyes/nflogfiled/internal/groups"
 )
 
 type Parser struct {

@@ -9,11 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluekeyes/nflogfiled/internal/groups"
-	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/florianl/go-nflog/v2"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+
+	"github.com/bluekeyes/nflogfiled/internal/groups"
+	"github.com/bluekeyes/nflogfiled/internal/message"
 )
 
 // Case represents a specific test case with inputs and the expected

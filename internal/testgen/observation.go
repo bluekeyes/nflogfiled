@@ -12,10 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluekeyes/nflogfiled/internal/groups"
-	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/gopacket/layers"
+
+	"github.com/bluekeyes/nflogfiled/internal/groups"
+	"github.com/bluekeyes/nflogfiled/internal/message"
 )
 
 // Observation contains the data observed in an output log line. A nil field

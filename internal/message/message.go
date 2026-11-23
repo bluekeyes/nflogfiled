@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/google/gopacket/layers"
+
+	"github.com/bluekeyes/nflogfiled/internal/groups"
 )
 
 type Message struct {

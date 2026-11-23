@@ -10,11 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/florianl/go-nflog/v2"
+
 	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/bluekeyes/nflogfiled/internal/logfile"
 	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/bluekeyes/nflogfiled/internal/metrics"
-	"github.com/florianl/go-nflog/v2"
 )
 
 const (

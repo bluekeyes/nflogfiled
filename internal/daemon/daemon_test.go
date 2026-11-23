@@ -18,12 +18,13 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/florianl/go-nflog/v2"
+
 	"github.com/bluekeyes/nflogfiled/internal/daemon"
 	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/bluekeyes/nflogfiled/internal/logfile"
 	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/bluekeyes/nflogfiled/internal/testgen"
-	"github.com/florianl/go-nflog/v2"
 )
 
 // Scenario is a randomly-generated daemon test case. Tests run the daemon and

@@ -9,10 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/florianl/go-nflog/v2"
+
 	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/bluekeyes/nflogfiled/internal/message"
 	"github.com/bluekeyes/nflogfiled/internal/metrics"
-	"github.com/florianl/go-nflog/v2"
 )
 
 // NflogHook returns a hook function that converts nflog.Attribute structs to

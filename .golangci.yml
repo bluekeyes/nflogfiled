@@ -43,4 +43,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/bluekeyes/nglogfiled
+        - github.com/bluekeyes/nflogfiled

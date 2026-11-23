@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluekeyes/nflogfiled/internal/groups"
 	"github.com/google/gopacket/layers"
+
+	"github.com/bluekeyes/nflogfiled/internal/groups"
 )
 
 func benchMessage() Message {
