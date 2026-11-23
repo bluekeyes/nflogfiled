@@ -351,16 +351,14 @@ Tuning Options:
                                   while also increasing output latency. The default
                                   value is ` + defaultFlushCount + `.
 
-  -device-name-ttl=duration       Sets approximate time the daemon caches device
+  -device-name-ttl=duration       Sets the approximate time the daemon caches device
                                   index to name mappings. The default value is ` + defaultDeviceNameTTL + `.
 
 Metrics Options:
 
   -metrics-address=addr  Enables a Prometheus metrics endpoint that listens on the
-                         given address in 'host:port' form, e.g. '127.0.0.1:9880'.
-                         Metrics are disabled by default. The endpoint uses plain
-                         HTTP without authentication, so bind it to a trusted
-                         address.
+                         given address, in 'host:port' form. Metrics are disabled
+						 by default.
 
   -metrics-path=path     Sets the HTTP path of the metrics endpoint. The default
                          path is '` + DefaultMetricsPath + `'.

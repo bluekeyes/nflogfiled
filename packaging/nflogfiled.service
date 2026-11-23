@@ -18,8 +18,6 @@ AmbientCapabilities=CAP_NET_ADMIN
 CapabilityBoundingSet=CAP_NET_ADMIN
 NoNewPrivileges=yes
 
-# Output files may be written anywhere except /usr, /boot, /etc, home
-# directories, and /tmp (which is private to the service)
 ProtectSystem=full
 ProtectHome=read-only
 PrivateTmp=yes
